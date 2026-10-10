@@ -54,6 +54,11 @@ resource "azurerm_storage_data_lake_gen2_filesystem" "enriched" {
     storage_account_id = azurerm_storage_account.adls.id
 }
 
+resource "azurerm_storage_data_lake_gen2_filesystem" "quarantine" {
+    name               = "quarantine"
+    storage_account_id = azurerm_storage_account.adls.id
+}
+
 resource "azurerm_data_factory" "adf" {
     name = "adfbougrine"
     location = var.location
@@ -166,9 +171,9 @@ resource "azurerm_role_assignment" "synapse_datalake" {
     principal_id = azurerm_synapse_workspace.synapse.identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "user_datalake_reader" {
+resource "azurerm_role_assignment" "user_datalake_contributor" {
     scope                = azurerm_storage_account.adls.id
-    role_definition_name = "Storage Blob Data Reader"
+    role_definition_name = "Storage Blob Data Contributor"
     principal_id         = var.object_id
 }
 
