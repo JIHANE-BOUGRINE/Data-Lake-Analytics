@@ -1,0 +1,15 @@
+{
+	"name": "adfbougrine",
+	"properties": {
+		"trustModeClaimForMi": {
+			"value": "Disabled",
+			"editable": true
+		}
+	},
+	"location": "francecentral",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "a2b3114c-0177-4506-a1a5-6c207a737868",
+		"tenantId": "12867fd4-3826-498d-8564-9576000359e2"
+	}
+}
