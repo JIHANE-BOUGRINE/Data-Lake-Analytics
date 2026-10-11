@@ -1,0 +1,4127 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Nom de l'espace de travail",
+			"defaultValue": "synapsebougrine"
+		},
+		"synapsebougrine-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Chaîne sécurisée pour « connectionString » de « synapsebougrine-WorkspaceDefaultSqlServer »",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:synapsebougrine.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"synapsebougrine-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://synapsestoragebougrine.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/synapsebougrine-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('synapsebougrine-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/synapsebougrine-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('synapsebougrine-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE DATABASE ecommerce_gold;\nGO\n\nUSE ecommerce_gold;\nGO\n-- Vue dim_date\nCREATE OR ALTER VIEW dim_date AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_date/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_customers\nCREATE OR ALTER VIEW dim_customers AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_customers/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_products\nCREATE OR ALTER VIEW dim_products AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_products/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_promotions\nCREATE OR ALTER VIEW dim_promotions AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_promotions/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_warehouses\nCREATE OR ALTER VIEW dim_warehouses AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_warehouses/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_sales\nCREATE OR ALTER VIEW fact_sales AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_sales/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_payments\nCREATE OR ALTER VIEW fact_payments AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_payments/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_shipments\nCREATE OR ALTER VIEW fact_shipments AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_shipments/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_returns\nCREATE OR ALTER VIEW fact_returns AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_returns/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_reviews\nCREATE OR ALTER VIEW fact_reviews AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_reviews/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_inventory\n\nCREATE OR ALTER VIEW fact_inventory AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_inventory/**',\n    FORMAT = 'PARQUET'\n) AS r;\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "ecommerce_gold",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/NB_Bronze_to_Silver')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "SPDLake",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "4b8d57a4-0186-4dfb-a764-815780997d92"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1",
+						"state": {
+							"64c99837-1930-4148-99e7-2412aaf5c1da": {
+								"type": "Synapse.DataFrame",
+								"sync_state": {
+									"table": {
+										"rows": [
+											{
+												"0": "0",
+												"1": "0",
+												"2": "0",
+												"3": "0",
+												"4": "0",
+												"5": "0",
+												"6": "8168",
+												"7": "0",
+												"8": "0",
+												"9": "0",
+												"10": "8168",
+												"11": "0"
+											}
+										],
+										"schema": [
+											{
+												"key": "0",
+												"name": "customer_id",
+												"type": "bigint"
+											},
+											{
+												"key": "1",
+												"name": "first_name",
+												"type": "bigint"
+											},
+											{
+												"key": "2",
+												"name": "last_name",
+												"type": "bigint"
+											},
+											{
+												"key": "3",
+												"name": "email",
+												"type": "bigint"
+											},
+											{
+												"key": "4",
+												"name": "phone",
+												"type": "bigint"
+											},
+											{
+												"key": "5",
+												"name": "gender",
+												"type": "bigint"
+											},
+											{
+												"key": "6",
+												"name": "birth_date",
+												"type": "bigint"
+											},
+											{
+												"key": "7",
+												"name": "registration_date",
+												"type": "bigint"
+											},
+											{
+												"key": "8",
+												"name": "tier",
+												"type": "bigint"
+											},
+											{
+												"key": "9",
+												"name": "newsletter",
+												"type": "bigint"
+											},
+											{
+												"key": "10",
+												"name": "age",
+												"type": "bigint"
+											},
+											{
+												"key": "11",
+												"name": "domain",
+												"type": "bigint"
+											}
+										],
+										"truncated": false
+									},
+									"isSummary": false,
+									"language": "scala",
+									"wranglerEntryContext": {
+										"dataframeType": "pyspark"
+									}
+								},
+								"persist_state": {
+									"view": {
+										"type": "details",
+										"chartOptions": {
+											"chartType": "bar",
+											"aggregationType": "sum",
+											"categoryFieldKeys": [
+												"1"
+											],
+											"seriesFieldKeys": [
+												"0"
+											],
+											"isStacked": false
+										}
+									}
+								}
+							}
+						}
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/bdfa1129-0773-4909-948b-f81c94886e31/resourceGroups/rgJihaneBougrine/providers/Microsoft.Synapse/workspaces/synapsebougrine/bigDataPools/SPDLake",
+						"name": "SPDLake",
+						"type": "Spark",
+						"endpoint": "https://synapsebougrine.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/SPDLake",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.5",
+						"nodeCount": 3,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.utils import AnalysisException\n",
+							"from pyspark.sql.functions import col\n",
+							"\n",
+							"def read_csv_safe(path, table_name, expected_columns=None):\n",
+							"    try:\n",
+							"        df = spark.read.csv(\n",
+							"            path,\n",
+							"            header=True,\n",
+							"            inferSchema=True,\n",
+							"            mode=\"PERMISSIVE\",\n",
+							"            columnNameOfCorruptRecord=\"corrupt_record\"\n",
+							"        )\n",
+							"\n",
+							"        # Vérification 1 : fichier vide\n",
+							"        nb_lignes = df.count()\n",
+							"        if nb_lignes == 0:\n",
+							"            return None, False, f\"⚠️ [{table_name}] Fichier vide : {path}\"\n",
+							"\n",
+							"        # Vérification 2 : colonnes attendues présentes\n",
+							"        if expected_columns:\n",
+							"            missing_cols = set(expected_columns) - set(df.columns)\n",
+							"            if missing_cols:\n",
+							"                return None, False, f\"⚠️ [{table_name}] Colonnes manquantes : {missing_cols}\"\n",
+							"\n",
+							"        # Vérification 3 : isoler les lignes corrompues\n",
+							"        if \"corrupt_record\" in df.columns:\n",
+							"            lignes_corrompues = df.filter(col(\"corrupt_record\").isNotNull())\n",
+							"            nb_corrompues = lignes_corrompues.count()\n",
+							"            if nb_corrompues > 0:\n",
+							"                lignes_corrompues.write.mode(\"overwrite\").parquet(\n",
+							"                    f\"abfss://raw@adlsbougrine.dfs.core.windows.net/quarantine/{table_name}_corrupt/\"\n",
+							"                )\n",
+							"                print(f\"⚠️ [{table_name}] {nb_corrompues} lignes corrompues isolées en quarantaine\")\n",
+							"            df = df.filter(col(\"corrupt_record\").isNull()).drop(\"corrupt_record\")\n",
+							"\n",
+							"        return df, True, f\"✅ [{table_name}] Lecture réussie : {nb_lignes} lignes\"\n",
+							"\n",
+							"    except AnalysisException as e:\n",
+							"        return None, False, f\"❌ [{table_name}] Fichier introuvable ou illisible : {str(e)}\"\n",
+							"    except Exception as e:\n",
+							"        return None, False, f\"❌ [{table_name}] Erreur inattendue : {str(e)}\""
+						],
+						"outputs": [],
+						"execution_count": 552
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Dictionnaire des colonnes attendues pour chaque table\n",
+							"colonnes_attendues = {\n",
+							"    \"orders\": [\"order_id\", \"customer_id\", \"order_date\", \"status\", \"total_amount\", \"shipping_address_id\", \"promotion_id\"],\n",
+							"    \"customers\": [\"customer_id\", \"first_name\", \"last_name\", \"email\", \"phone\", \"gender\", \"birth_date\", \"registration_date\", \"tier\", \"newsletter\"],\n",
+							"    \"products\": [\"product_id\", \"product_name\", \"category_id\", \"supplier_id\", \"brand\", \"price\", \"cost_price\", \"weight_kg\", \"sku\", \"barcode\", \"created_at\", \"is_active\"],\n",
+							"    \"categories\": [\"category_id\", \"category_name\", \"parent_category\", \"description\", \"created_at\"],\n",
+							"    \"suppliers\": [\"supplier_id\", \"supplier_name\", \"contact_name\", \"email\", \"phone\", \"country\", \"rating\", \"created_at\"],\n",
+							"    \"warehouses\": [\"warehouse_id\", \"warehouse_name\", \"city\", \"address\", \"capacity\", \"manager_name\", \"opened_date\"],\n",
+							"    \"customer_addresses\": [\"address_id\", \"customer_id\", \"address_type\", \"street\", \"city\", \"postal_code\", \"country\", \"is_default\"],\n",
+							"    \"promotions\": [\"promotion_id\", \"promo_code\", \"description\", \"discount_pct\", \"start_date\", \"end_date\", \"min_purchase\", \"is_active\"],\n",
+							"    \"shipments\": [\"shipment_id\", \"order_id\", \"carrier\", \"tracking_number\", \"ship_date\", \"delivery_date\", \"shipping_cost\", \"status\"],\n",
+							"    \"order_items\": [\"order_item_id\", \"order_id\", \"product_id\", \"quantity\", \"unit_price\", \"discount_applied\"],\n",
+							"    \"returns\": [\"return_id\", \"order_id\", \"product_id\", \"quantity\", \"return_reason\", \"return_date\", \"refund_amount\", \"status\"],\n",
+							"    \"reviews\": [\"review_id\", \"customer_id\", \"product_id\", \"rating\", \"review_text\", \"review_date\", \"is_verified\"],\n",
+							"    \"inventory\": [\"inventory_id\", \"product_id\", \"warehouse_id\", \"quantity\", \"reorder_level\", \"last_restock_date\", \"unit_cost\"],\n",
+							"    \"loyalty_points\": [\"loyalty_id\", \"customer_id\", \"points_earned\", \"points_redeemed\", \"transaction_date\", \"points_type\"],\n",
+							"    \"payments\": [\"payment_id\", \"order_id\", \"payment_date\", \"payment_method\", \"amount\", \"status\"]\n",
+							"}\n",
+							"\n",
+							"def lire_toutes_les_tables():\n",
+							"    tables = {}\n",
+							"    erreurs = []\n",
+							"    \n",
+							"    for table_name, cols in colonnes_attendues.items():\n",
+							"        path = f\"abfss://raw@adlsbougrine.dfs.core.windows.net/{table_name}/{table_name}.csv\"\n",
+							"        df, success, message = read_csv_safe(path, table_name, expected_columns=cols)\n",
+							"        print(message)\n",
+							"        \n",
+							"        if success:\n",
+							"            tables[table_name] = df\n",
+							"        else:\n",
+							"            erreurs.append((table_name, message))\n",
+							"    \n",
+							"    return tables, erreurs\n",
+							"\n",
+							"# Exécution\n",
+							"tables_chargees, erreurs_chargement = lire_toutes_les_tables()\n",
+							"\n",
+							"print(f\"Tables chargées avec succès : {len(tables_chargees)}/{len(colonnes_attendues)}\")\n",
+							"if erreurs_chargement:\n",
+							"    print(f\"⚠️ {len(erreurs_chargement)} erreur(s) rencontrée(s) :\")\n",
+							"    for table, msg in erreurs_chargement:\n",
+							"        print(f\"  - {msg}\")"
+						],
+						"outputs": [],
+						"execution_count": 553
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(\"Nombre de cœurs disponibles :\", spark.sparkContext.defaultParallelism)\n",
+							"print()\n",
+							"\n",
+							"for nom, df in tables_chargees.items():\n",
+							"    nb_partitions_actuelles = df.rdd.getNumPartitions()\n",
+							"    nb_lignes = df.count()\n",
+							"    print(f\"{nom}: {nb_partitions_actuelles} partitions actuelles, {nb_lignes} lignes\")"
+						],
+						"outputs": [],
+						"execution_count": 554
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Vérification qu'aucune table critique n'a échoué\n",
+							"if erreurs_chargement:\n",
+							"    raise Exception(f\"🛑 Pipeline arrêté : {len(erreurs_chargement)} tables n'ont pas pu être chargées correctement.\")\n",
+							"\n",
+							"# Tables à repartitionner \n",
+							"df_customers = tables_chargees[\"customers\"].repartition(8)\n",
+							"df_addresses = tables_chargees[\"customer_addresses\"].repartition(8)\n",
+							"df_payments = tables_chargees[\"payments\"].repartition(8)\n",
+							"df_shipments = tables_chargees[\"shipments\"].repartition(8)\n",
+							"df_reviews = tables_chargees[\"reviews\"].repartition(8)\n",
+							"df_loyalty_points = tables_chargees[\"loyalty_points\"].repartition(8)\n",
+							"df_inventory = tables_chargees[\"inventory\"].repartition(8)\n",
+							"\n",
+							"# Tables déjà correctement partitionnées - pas de changement\n",
+							"df_orders = tables_chargees[\"orders\"]\n",
+							"df_items = tables_chargees[\"order_items\"]\n",
+							"\n",
+							"# Tables trop petites - pas de changement\n",
+							"df_products = tables_chargees[\"products\"]\n",
+							"df_categories = tables_chargees[\"categories\"]\n",
+							"df_suppliers = tables_chargees[\"suppliers\"]\n",
+							"df_warehouses = tables_chargees[\"warehouses\"]\n",
+							"df_promotions = tables_chargees[\"promotions\"]\n",
+							"df_returns = tables_chargees[\"returns\"]"
+						],
+						"outputs": [],
+						"execution_count": 555
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 1 - orders.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"#Nombre de valeurs nulls pour chaque colonne\n",
+							"from pyspark.sql.functions import count,col,when,trim,lower\n",
+							"df_orders.select([count(when(col(c).isNull(),c)).alias(c)\n",
+							"for c in df_orders.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 556
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_orders.groupBy(\"status\").count().orderBy(\"status\", ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 557
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Nettoyage des statuts\n",
+							"invalid_status = [\"unk\",\"other\",\"n/a\",\"unknown\",\"null\",\"none\",\"???\",\"-1\"]\n",
+							"df_orders_clean = df_orders.withColumn(\n",
+							"    \"status\",\n",
+							"    when(\n",
+							"        trim(lower(col(\"status\"))).isin(invalid_status) | col(\"status\").isNull(), \"inconnu\"\n",
+							"    ).otherwise(col(\"status\"))\n",
+							")\n",
+							"print(\"Status après nettoyage\\n\")\n",
+							"df_orders_clean.groupBy(\"status\").count().orderBy(\"count\", ascending=False).show()"
+						],
+						"outputs": [],
+						"execution_count": 558
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des doublons\n",
+							"print(f\"nombre de lignes avant déduplication : {df_orders.count()}\")\n",
+							"df_orders_clean = df_orders_clean.dropDuplicates([\"order_id\"])\n",
+							"print(f\"nombre de lignes après déduplication : {df_orders_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 559
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_orders_clean.select(\"total_amount\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 560
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"negative = df_orders_clean.filter(col(\"total_amount\")<0).count()\n",
+							"print(f\"Montants négatifs {negative}\")"
+						],
+						"outputs": [],
+						"execution_count": 561
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"high = df_orders_clean.filter(col(\"total_amount\") > 10000).count()\n",
+							"print(f\"Montants > 10 000 : {high}\")"
+						],
+						"outputs": [],
+						"execution_count": 562
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import percentile_approx,abs,coalesce,lit\n",
+							"df_orders_clean.select(\n",
+							"    percentile_approx(\"total_amount\", 0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(\"total_amount\", 0.50).alias(\"Médiane\"),\n",
+							"    percentile_approx(\"total_amount\", 0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(\"total_amount\", 0.95).alias(\"P95\"),\n",
+							"    percentile_approx(\"total_amount\", 0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 563
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Nettoyage des montants \n",
+							"#Supprimer montant négatifs pour statuts actifs et >10000\n",
+							"statuts_actifs = [\"Livrée\",\"En cours\",\"En attente\",\"Expédiée\"]\n",
+							"df_orders_clean = df_orders_clean.filter(\n",
+							"    ~(col(\"status\").isin(statuts_actifs) & (col(\"total_amount\")<0))\n",
+							")\n",
+							"df_orders_clean = df_orders_clean.filter(\n",
+							"    ~(col(\"total_amount\")>10000)\n",
+							")\n",
+							"#valeurs absolues pour remboursée et annulée et inconnu\n",
+							"statuts_remb = [\"Remboursée\",\"Annulée\",\"inconnu\"]\n",
+							"df_orders_clean = df_orders_clean.withColumn(\n",
+							"    \"total_amount\",when(\n",
+							"        (col(\"total_amount\")<0) & col(\"status\").isin(statuts_remb),abs(col(\"total_amount\"))\n",
+							"    ).otherwise(col(\"total_amount\"))\n",
+							")\n",
+							"\n",
+							"#médiane pour montants nulls\n",
+							"df_orders_clean = df_orders_clean.withColumn(\n",
+							"    \"total_amount\",coalesce(col(\"total_amount\"),lit(55.51))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 564
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_orders_clean.filter(\n",
+							"    (col(\"status\") == \"inconnu\") & (col(\"total_amount\") < 0)\n",
+							").count()"
+						],
+						"outputs": [],
+						"execution_count": 565
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"df_orders_clean.select([count(when(col(c).isNull(),c)).alias(c)\n",
+							"for c in df_orders_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 566
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Vérification finale\n",
+							"print(f\"Lignes finales : {df_orders_clean.count()}\")\n",
+							"df_orders_clean.select(\"total_amount\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 567
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Vérification des formats de dates\n",
+							"from pyspark.sql.functions import to_timestamp, col,regexp_replace,concat,substring\n",
+							"\n",
+							"#convertir order_date au format standard\n",
+							"df_orders_clean = df_orders_clean.withColumn(\n",
+							"    \"order_date_parsed\",\n",
+							"    to_timestamp(col(\"order_date\"), \"yyyy-MM-dd HH:mm:ss\")\n",
+							")\n",
+							"\n",
+							"nb_invalides = df_orders_clean.filter(col(\"order_date_parsed\").isNull()).count()\n",
+							"print(f\"Lignes avec format de date non standard : {nb_invalides}\")\n",
+							"\n",
+							"#dates \"problématiques\"\n",
+							"df_orders_clean.filter(col(\"order_date_parsed\").isNull()).select(\"order_date\").show(20, truncate=False)\n",
+							"df_orders_clean = df_orders_clean.drop(\"order_date_parsed\")"
+						],
+						"outputs": [],
+						"execution_count": 568
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Nettoyage des formats de dates\n",
+							"df_orders_clean = df_orders_clean.withColumn(\"order_date_str\",col(\"order_date\").cast(\"string\"))\\\n",
+							"    .withColumn(\"order_date_clean\", regexp_replace(col(\"order_date_str\"),\"[/.]\",\"-\"))\\\n",
+							"    .withColumn(\"order_date_clean\",\n",
+							"        when(col(\"order_date_clean\").rlike(r'^\\d{8}'),\n",
+							"            concat(\n",
+							"                substring(col(\"order_date_clean\"),1,4),lit(\"-\"),\n",
+							"                substring(col(\"order_date_clean\"),5,2),lit(\"-\"),\n",
+							"                substring(col(\"order_date_clean\"),7,2)\n",
+							"            )\n",
+							"        ).otherwise(col(\"order_date_clean\"))\n",
+							"    )\\\n",
+							"    .withColumn(\"order_date_clean\",\n",
+							"        when(\n",
+							"            col(\"order_date_clean\").rlike(r'^\\d{2}-\\d{2}.*\\d{4}$'),\n",
+							"            concat(\n",
+							"                substring(col(\"order_date_clean\"),-4,4),lit(\"-\"),\n",
+							"                substring(col(\"order_date_clean\"),1,2),lit(\"-\"),\n",
+							"                substring(col(\"order_date_clean\"),4,2),  \n",
+							"                substring(col(\"order_date_clean\"),6,9),              \n",
+							"            )\n",
+							"        ).otherwise(col(\"order_date_clean\"))\n",
+							"    )\\\n",
+							"    .withColumn(\"order_date\",to_timestamp(col(\"order_date_clean\")))\\\n",
+							"    .drop(\"order_date_clean\",\"order_date_str\")"
+						],
+						"outputs": [],
+						"execution_count": 569
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"null_dates = df_orders_clean.filter(col(\"order_date\").isNull()).count()\n",
+							"print(f\"Dates NULL après correction : {null_dates}\")\n",
+							"print(f\"lignes totales de dataset orders: {df_orders_clean.count()}\")\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 570
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_orders_clean = df_orders_clean.cache()\n",
+							"df_orders_clean.count()  "
+						],
+						"outputs": [],
+						"execution_count": 571
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_orders_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/orders/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 572
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							" ### <mark>**Table 2 - customers.csv**</mark></mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"#nombre de lignes nulls\n",
+							"from pyspark.sql.functions import count, col, when,coalesce, lit, trim,lower,length,concat,regexp_replace\n",
+							"df_customers.select([count(when(col(c).isNull(),c)).alias(c)\n",
+							"for c in df_customers.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 573
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers.groupBy(\"tier\").count().orderBy(col(\"tier\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 574
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des nulls de la colonne tier\n",
+							"df_customers_clean = df_customers.withColumn(\"tier\", coalesce(col(\"tier\"),lit(\"Bronze\")))"
+						],
+						"outputs": [],
+						"execution_count": 575
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#vérififcation des valeurs dans la colonne gender\n",
+							"df_customers_clean.groupBy(\"gender\").count().orderBy(col(\"gender\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 576
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des valeurs manquantes et invalides de la colonne gender\n",
+							"invalid_gender = [\"unk\",\"unknown\",\"other\",\"null\",\"none\",\"n/a\",\"???\",\"-1\"]\n",
+							"df_customers_clean = df_customers_clean.withColumn(\"gender\", when(col(\"gender\")==\"Other\",\"Other\")\n",
+							"    .when(trim(lower(col(\"gender\"))).isin(invalid_gender) | col(\"gender\").isNull(),\"inconnu\")\n",
+							"    .otherwise(col(\"gender\")))"
+						],
+						"outputs": [],
+						"execution_count": 577
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.groupBy(\"gender\").count().orderBy(col(\"gender\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 578
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#vérification des numéros incorrects\n",
+							"df_customers_clean.groupBy(length(\"phone\").alias(\"phone_length\")).count() .orderBy(\"phone_length\", ascending=False).show()"
+						],
+						"outputs": [],
+						"execution_count": 579
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.filter(length(col(\"phone\"))==13).select(\"phone\").show(10)"
+						],
+						"outputs": [],
+						"execution_count": 580
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#correction des numéros incorrects\n",
+							"df_customers_clean = df_customers_clean\\\n",
+							"    .withColumn(\"phone\",\n",
+							"        when(\n",
+							"            length(col(\"phone\"))==13,concat(lit(\"0\"),regexp_replace(col(\"phone\"),r\"^(0033|\\+33\\s?)\",\"\"))\n",
+							"        ).otherwise(col(\"phone\"))\n",
+							"    )"
+						],
+						"outputs": [],
+						"execution_count": 581
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.groupBy(length(\"phone\").alias(\"phone_length\")).count() .orderBy(\"phone_length\", ascending=False).show()"
+						],
+						"outputs": [],
+						"execution_count": 582
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"##affichage des dates invalides\n",
+							"df_customers_clean.select(\"birth_date\").distinct().show(100)"
+						],
+						"outputs": [],
+						"execution_count": 583
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des dates invalides\n",
+							"from pyspark.sql.functions import regexp_replace, col, when, concat, lit, substring, to_date, year, current_date, coalesce\n",
+							"\n",
+							"df_customers_clean = df_customers_clean.withColumn(\n",
+							"    \"birth_date_clean\", regexp_replace(col(\"birth_date\"), r\"[/.]\", \"-\")\n",
+							").withColumn(\n",
+							"    \"birth_date_clean\",\n",
+							"    when(\n",
+							"        col(\"birth_date_clean\").rlike(r'^\\d{8}$'),\n",
+							"        concat(\n",
+							"            substring(col(\"birth_date_clean\"), 1, 4), lit(\"-\"),\n",
+							"            substring(col(\"birth_date_clean\"), 5, 2), lit(\"-\"),\n",
+							"            substring(col(\"birth_date_clean\"), 7, 2)\n",
+							"        )\n",
+							"    ).when(\n",
+							"        col(\"birth_date_clean\").rlike(r'^\\d{2}-\\d{2}-\\d{4}$'), \n",
+							"        concat(\n",
+							"            substring(col(\"birth_date_clean\"), 7, 4), lit(\"-\"),\n",
+							"            substring(col(\"birth_date_clean\"), 1, 2), lit(\"-\"),  \n",
+							"            substring(col(\"birth_date_clean\"), 4, 2)             \n",
+							"        )\n",
+							"    ).otherwise(col(\"birth_date_clean\"))\n",
+							").withColumn(\n",
+							"    \"birth_date\", to_date(col(\"birth_date_clean\"), \"yyyy-MM-dd\")\n",
+							").withColumn(\n",
+							"    \"age\", year(current_date()) - year(col(\"birth_date\"))\n",
+							").drop(\"birth_date_clean\")"
+						],
+						"outputs": [],
+						"execution_count": 584
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.select([\"age\"]).describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 585
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des doublons\n",
+							"print(f\"nombre de lignes avant déduplication: {df_customers_clean.count()}\")\n",
+							"df_customers_clean = df_customers_clean.dropDuplicates([\"customer_id\"])\n",
+							"print(f\"nombre de lignes après déduplication: {df_customers_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 586
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.select(\"email\").distinct().show(100)"
+						],
+						"outputs": [],
+						"execution_count": 587
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoayge des emails (remplacement de _ par @)\n",
+							"df_customers_clean = df_customers_clean.withColumn(\n",
+							"    \"email\",regexp_replace(col(\"email\"),\"_\",\"@\")\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 588
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import split, col\n",
+							"\n",
+							"df_customers_clean.withColumn(\"domain\", split(col(\"email\"), \"@\").getItem(1)) \\\n",
+							"    .groupBy(\"domain\").count().orderBy(\"count\", ascending=False).show()"
+						],
+						"outputs": [],
+						"execution_count": 589
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean = df_customers_clean\\\n",
+							"    .withColumn(\"email\",regexp_replace(col(\"email\"),\"gmil.com\",\"gmail.com\"))\\\n",
+							"    .withColumn(\"email\",regexp_replace(col(\"email\"),\"hotmal.com\",\"hotmail.com\"))\\\n",
+							"    .withColumn(\"email\",regexp_replace(col(\"email\"),\"yaho.com\",\"yahoo.fr\"))"
+						],
+						"outputs": [],
+						"execution_count": 590
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean = df_customers_clean.withColumn(\"domain\", split(col(\"email\"), \"@\").getItem(1))\n",
+							"\n",
+							"df_customers_clean.groupBy(\"domain\").count().orderBy(\"count\", ascending=False).show()"
+						],
+						"outputs": [],
+						"execution_count": 591
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean = df_customers_clean\\\n",
+							"    .withColumn(\"email\",trim(lower(col(\"email\"))))\\\n",
+							"    .withColumn(\"domain\",trim(lower(col(\"domain\"))))\\\n",
+							"    .withColumn(\"first_name\",trim(col(\"first_name\")))\\\n",
+							"    .withColumn(\"last_name\",trim(col(\"last_name\")))"
+						],
+						"outputs": [],
+						"execution_count": 592
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.groupBy(\"domain\").count().orderBy(\"count\", ascending=False).show()"
+						],
+						"outputs": [],
+						"execution_count": 593
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"display(df_customers_clean.select([count(when(col(c).isNull(),c)).alias(c)\n",
+							"for c in df_customers_clean.columns]))"
+						],
+						"outputs": [],
+						"execution_count": 594
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_customers_clean = df_customers_clean.cache()\n",
+							"df_customers_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 595
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/customers\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 596
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Table 3 - products.csv**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_products.count()"
+						],
+						"outputs": [],
+						"execution_count": 597
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"from pyspark.sql.functions import count, col, when,abs,greatest,least\n",
+							"df_products.select([count(when(col(c).isNull(),c)).alias(c)\n",
+							"for c in df_products.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 598
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des doublons\n",
+							"print(f\"nombre de lignes avant déduplication : {df_products.count()}\")\n",
+							"df_products_clean = df_products.dropDuplicates([\"product_id\"])\n",
+							"print(f\"nombre de lignes après déduplication : {df_products_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 599
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#remplacer les SKU nulls par des sku générés\n",
+							"from pyspark.sql.functions import lpad,concat,lit\n",
+							"df_products_clean = df_products_clean.withColumn(\n",
+							"    \"sku\",\n",
+							"    when(\n",
+							"        col(\"sku\").isNull(),\n",
+							"        concat(lit(\"SKU-\"), lpad(col(\"product_id\").cast(\"string\"), 6, \"0\"))\n",
+							"    ).otherwise(col(\"sku\"))\n",
+							")\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 600
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_products_clean.select([count(when(col(c).isNull(),c)).alias(c)\n",
+							"for c in df_products_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 601
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Vérification des doublons dans SKU\n",
+							"print(f\"SKUs distincts : {df_products_clean.dropDuplicates(['sku']).count()}\")\n",
+							"print(f\"Total lignes : {df_products_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 602
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Statistiques de prix\n",
+							"df_products_clean.select(\"price\", \"cost_price\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 603
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Valeur absolue pour prix négatifs\n",
+							"df_products_clean = df_products_clean.withColumn(\"price\",when(col(\"price\")<0,abs(col(\"price\"))).otherwise(col(\"price\")))\\\n",
+							"    .withColumn(\"cost_price\",when(col(\"cost_price\")<0,abs(col(\"cost_price\"))).otherwise(col(\"cost_price\")))"
+						],
+						"outputs": [],
+						"execution_count": 604
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Incohérences : cost_price > price\"\n",
+							"print(f\"Lignes où cost_price > price : {df_products_clean.filter(col('cost_price') > col('price')).count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 605
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Swap les valeurs\n",
+							"df_products_clean = df_products_clean.withColumn(\"price_high\",greatest(col(\"price\"),col(\"cost_price\")))\\\n",
+							"    .withColumn(\"price_lower\",least(col(\"price\"),col(\"cost_price\")))\\\n",
+							"    .withColumn(\"price\",col(\"price_high\"))\\\n",
+							"    .withColumn(\"cost_price\",col(\"price_lower\"))\\\n",
+							"    .drop(\"price_lower\",\"price_high\")"
+						],
+						"outputs": [],
+						"execution_count": 606
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#statistiques des poids\n",
+							"df_products_clean.select(col(\"weight_kg\")).describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 607
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#quartiles et percentiles de poids\n",
+							"print(f\"Poids négatifs : {df_products_clean.filter(col('weight_kg') < 0).count()}\")\n",
+							"df_products_clean.select(\n",
+							"    percentile_approx(\"weight_kg\", 0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(\"weight_kg\",0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(\"weight_kg\",0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(\"weight_kg\",0.99).alias(\"P99\"),\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 608
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#valeur absolue pour les valeurs négatifs et suppression des poids aberrantes\n",
+							"df_products_clean = df_products_clean.withColumn(\"weight_kg\",when(col(\"weight_kg\")<0,abs(col(\"weight_kg\")))\\\n",
+							"    .otherwise(col(\"weight_kg\")))\n",
+							"df_products_clean = df_products_clean.filter(col(\"weight_kg\")<=100)"
+						],
+						"outputs": [],
+						"execution_count": 609
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_products_clean = df_products_clean.cache()\n",
+							"df_products_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 610
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_products_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/products/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 611
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Table 4 - categories.csv**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_categories.count()"
+						],
+						"outputs": [],
+						"execution_count": 612
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count,col,when,coalesce,concat,lit\n",
+							"df_categories.select([count(when(col(c).isNull(),c)).alias(c) for c in df_categories.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 613
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#suppression des doublons\n",
+							"print(f\"nombre de lignes avant déduplication : {df_categories.count()}\")\n",
+							"df_categories_clean = df_categories.dropDuplicates([\"category_id\"])\n",
+							"print(f\"nombre de lignes après déduplication : {df_categories_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 614
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#remplacement des noms manquantes\n",
+							"df_categories_clean = df_categories_clean\\\n",
+							"    .withColumn(\"category_name\", \n",
+							"        coalesce(col(\"category_name\"),concat(lit(\"Catégorie_\"),col(\"category_id\").cast(\"string\"))\n",
+							"        )\n",
+							"    )"
+						],
+						"outputs": [],
+						"execution_count": 615
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Remplacement des descriptions manquantes\n",
+							"df_categories_clean = df_categories_clean.withColumn(\"description\",coalesce(col(\"description\"),lit(\"Description non disponible\")))"
+						],
+						"outputs": [],
+						"execution_count": 616
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_categories_clean.groupBy(\"parent_category\").count().orderBy(col(\"parent_category\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 617
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_categories_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_categories_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 618
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_categories_clean = df_categories_clean.cache()\n",
+							"df_categories_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 619
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_categories_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/categories/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 620
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Table 5 - suppliers.csv**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers.count()"
+						],
+						"outputs": [],
+						"execution_count": 621
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(f\"lignes totales avant déduplication : {df_suppliers.count()}\")\n",
+							"df_suppliers_clean = df_suppliers.dropDuplicates([\"supplier_id\"])\n",
+							"print(f\"lignes totales après déduplication : {df_suppliers_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 622
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count,when,col,trim,lower,length,concat,regexp_replace,lit\n",
+							"df_suppliers_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_suppliers_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 623
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.groupBy(\"country\").count().orderBy(col(\"country\"),ascending = False).show(100)"
+						],
+						"outputs": [],
+						"execution_count": 624
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des pays manquantes et invalides\n",
+							"invalid_country = [\"unk\",\"other\",\"n/a\",\"unknown\",\"null\",\"none\",\"???\",\"-1\"]\n",
+							"df_suppliers_clean = df_suppliers_clean.withColumn(\"country\",\n",
+							"    when(\n",
+							"        trim(lower(col(\"country\"))).isin(invalid_country) | col(\"country\").isNull(),\"Inconnu\"\n",
+							"    ).otherwise(col(\"country\"))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 625
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.groupBy(\"country\").count().orderBy(col(\"country\"),ascending = False).show(100)"
+						],
+						"outputs": [],
+						"execution_count": 626
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#vérification des numérs invalides (taille différente)\n",
+							"df_suppliers_clean.groupBy(length(col(\"phone\"))).count().show()"
+						],
+						"outputs": [],
+						"execution_count": 627
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.filter(length(col(\"phone\"))==13).select(\"phone\").show()"
+						],
+						"outputs": [],
+						"execution_count": 628
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des numéros invalides\n",
+							"df_suppliers_clean = df_suppliers_clean\\\n",
+							"    .withColumn(\"phone\",\n",
+							"        when(length(col(\"phone\")) == 13,\n",
+							"            concat(lit(0),regexp_replace(col(\"phone\"),r\"^(0033|\\+33\\s?)\",\"\"))).otherwise(col(\"phone\")))"
+						],
+						"outputs": [],
+						"execution_count": 629
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.groupBy(length(col(\"phone\"))).count().show()"
+						],
+						"outputs": [],
+						"execution_count": 630
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import split\n",
+							"df_suppliers_clean.withColumn(\"domain\",split(col(\"email\"),\"@\").getItem(1)).groupBy(col(\"domain\")).count().show()"
+						],
+						"outputs": [],
+						"execution_count": 631
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des emails\n",
+							"df_suppliers_clean = df_suppliers_clean\\\n",
+							"    .withColumn(\"email\",regexp_replace(col(\"email\"),\"@yaho.com\",\"@yahoo.fr\"))\\\n",
+							"    .withColumn(\"email\",regexp_replace(col(\"email\"),\"@gmil.com\",\"@gmail.com\"))\\\n",
+							"    .withColumn(\"email\",regexp_replace(col(\"email\"),\"@hotmal.com\",\"@hotmail.com\"))\\\n",
+							"    .withColumn(\"email\",col(\"email\").cast(\"string\"))\\\n",
+							"    .withColumn(\"email\",trim(lower(col(\"email\"))))\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 632
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.withColumn(\"domain\",split(col(\"email\"),\"@\").getItem(1)).groupBy(col(\"domain\")).count().show()"
+						],
+						"outputs": [],
+						"execution_count": 633
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.withColumn(\"domain\", split(col(\"email\"), \"@\").getItem(1)) \\\n",
+							"    .select(\"domain\") \\\n",
+							"    .distinct()\\\n",
+							"    .show(20, truncate=False)"
+						],
+						"outputs": [],
+						"execution_count": 634
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean = df_suppliers_clean.withColumn(\"email\",regexp_replace(col(\"email\"),r\"\\s+\",\"\"))"
+						],
+						"outputs": [],
+						"execution_count": 635
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.withColumn(\"domain\",split(col(\"email\"),\"@\").getItem(1)).groupBy(col(\"domain\")).count().show()"
+						],
+						"outputs": [],
+						"execution_count": 636
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.count()"
+						],
+						"outputs": [],
+						"execution_count": 637
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des emails sans @\n",
+							"df_suppliers_clean = df_suppliers_clean.withColumn(\"email\",when(~col(\"email\").contains(\"@\"),\"email_inconnu\").otherwise(col(\"email\")))"
+						],
+						"outputs": [],
+						"execution_count": 638
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.select([\"rating\"]).describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 639
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import percentile_approx\n",
+							"df_suppliers_clean.select(\n",
+							"    percentile_approx(\"rating\",0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(\"rating\",0.50).alias(\"médiane\"),\n",
+							"    percentile_approx(\"rating\",0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(\"rating\",0.99).alias(\"P99\"),\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 640
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#remplacement des notes nulls par le mode (4)\n",
+							"df_suppliers_clean = df_suppliers_clean.fillna({'rating':4.0})"
+						],
+						"outputs": [],
+						"execution_count": 641
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_suppliers_clean = df_suppliers_clean.cache()\n",
+							"df_suppliers_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 642
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/suppliers/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 643
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Table 6 - warehouses.csv**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_warehouses.count()"
+						],
+						"outputs": [],
+						"execution_count": 644
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count,when,col,percentile_approx,trim"
+						],
+						"outputs": [],
+						"execution_count": 645
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_warehouses.select([count(when(col(c).isNull(),c)).alias(c) for c in df_warehouses.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 646
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Remplacement des villes manquantes\n",
+							"df_warehouses_clean = df_warehouses.withColumn(\"city\",when(\n",
+							"    col(\"city\").isNull(),\"inconnu\"\n",
+							").otherwise(col(\"city\")))"
+						],
+						"outputs": [],
+						"execution_count": 647
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#suppression des doublons\n",
+							"print(f\"lignes totales avant déduplication : {df_warehouses.count()}\")\n",
+							"df_warehouses_clean = df_warehouses_clean.dropDuplicates([\"warehouse_id\"])\n",
+							"print(f\"lignes totales après déduplication : {df_warehouses_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 648
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#statistiques de capacity\n",
+							"df_warehouses_clean.select([\"capacity\"]).describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 649
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#calcul des quartiles \n",
+							"df_warehouses_clean.select(\n",
+							"    percentile_approx(col(\"capacity\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"capacity\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"capacity\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"capacity\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 650
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#suppression des capacités aberrantes\n",
+							"df_warehouses_clean = df_warehouses_clean.filter(col(\"capacity\") <= 200000)"
+						],
+						"outputs": [],
+						"execution_count": 651
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#suppression des espaces\n",
+							"df_warehouses_clean = df_warehouses_clean\\\n",
+							"    .withColumn(\"warehouse_name\", trim(col(\"warehouse_name\")))\\\n",
+							"    .withColumn(\"city\", trim(col(\"city\")))\\\n",
+							"    .withColumn(\"address\", trim(col(\"address\")))\\\n",
+							"    .withColumn(\"manager_name\", trim(col(\"manager_name\")))"
+						],
+						"outputs": [],
+						"execution_count": 652
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_warehouses_clean = df_warehouses_clean.cache()\n",
+							"df_warehouses_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 653
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_warehouses_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/warehouses/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 654
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Table 7 - customer_addresses.csv**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses.count()"
+						],
+						"outputs": [],
+						"execution_count": 655
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(f\"nombre de lignes avant déduplication : {df_addresses.count()}\")\n",
+							"df_addresses_clean = df_addresses.dropDuplicates([\"address_id\"])\n",
+							"print(f\"nombre de lignes après déduplication : {df_addresses_clean.count()}\")\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 656
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses.select([count(when(col(c).isNull(),c)).alias(c) for c in df_addresses.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 657
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.groupBy(\"country\").count().orderBy(col(\"country\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 658
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import when,trim,lower,length,row_number\n",
+							"from pyspark.sql.window import Window"
+						],
+						"outputs": [],
+						"execution_count": 659
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des pays invalides\n",
+							"invalid_country = [\"unk\",\"other\",\"n/a\",\"unknown\",\"null\",\"none\",\"???\",\"-1\"]\n",
+							"df_addresses_clean = df_addresses_clean\\\n",
+							"    .withColumn(\"country\",\n",
+							"        when((trim(lower(col(\"country\"))).isin(invalid_country)) | (col(\"country\").isNull()),\"France\")\\\n",
+							"            .otherwise(col(\"country\")\n",
+							"        )\n",
+							"    )"
+						],
+						"outputs": [],
+						"execution_count": 660
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.groupBy(\"country\").count().orderBy(col(\"country\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 661
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#remplacement des villes manquantes\n",
+							"df_addresses_clean = df_addresses_clean.withColumn(\"city\",when(col(\"city\").isNull(),\"inconnu\").otherwise(col(\"city\")))"
+						],
+						"outputs": [],
+						"execution_count": 662
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_addresses_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 663
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.groupBy(length(\"postal_code\")).count().show()"
+						],
+						"outputs": [],
+						"execution_count": 664
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.filter(length(col(\"postal_code\")) == 3).select(\"postal_code\", \"city\").show(10)\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 665
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.filter(length(col(\"postal_code\")) == 7).select(\"postal_code\", \"city\").show(10)"
+						],
+						"outputs": [],
+						"execution_count": 666
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#remplacement des codes postaux invalides par inconnu\n",
+							"df_addresses_clean = df_addresses_clean.withColumn(\"postal_code\",when(\n",
+							"    (length(col(\"postal_code\")) == 3) | (length(col(\"postal_code\")) == 7) | (col(\"postal_code\").isNull()),\"inconnu\").otherwise(col(\"postal_code\"))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 667
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# on garde TOUTES les adresses du client, on corrige juste is_default\n",
+							"window = Window.partitionBy(\"customer_id\").orderBy(\"address_id\")\n",
+							"\n",
+							"df_addresses_clean = df_addresses_clean.withColumn(\n",
+							"    \"rang_default\",\n",
+							"    when(col(\"is_default\") == True, row_number().over(window))\n",
+							")\n",
+							"\n",
+							"df_addresses_clean = df_addresses_clean.withColumn(\n",
+							"    \"is_default\",\n",
+							"    when(col(\"rang_default\") == 1, True).otherwise(False)\n",
+							").drop(\"rang_default\")\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 668
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql import Window\n",
+							"from pyspark.sql.functions import row_number, desc, when, col, max as spark_max\n",
+							"\n",
+							"window_spec = Window.partitionBy(\"customer_id\").orderBy(desc(\"is_default\"), col(\"address_id\"))\n",
+							"\n",
+							"window_client = Window.partitionBy(\"customer_id\")\n",
+							"\n",
+							"df_addresses_clean = df_addresses_clean \\\n",
+							"    .withColumn(\"rn\", row_number().over(window_spec)) \\\n",
+							"    .withColumn(\"has_default\", spark_max(col(\"is_default\").cast(\"int\")).over(window_client)) \\\n",
+							"    .withColumn(\n",
+							"        \"is_default\",\n",
+							"        when((col(\"has_default\") == 0) & (col(\"rn\") == 1), True)\n",
+							"        .otherwise(col(\"is_default\"))\n",
+							"    ) \\\n",
+							"    .drop(\"rn\", \"has_default\")\n",
+							"\n",
+							"# Vérification finale\n",
+							"total_clients = df_addresses_clean.select(\"customer_id\").distinct().count()\n",
+							"clients_avec_defaut_final = df_addresses_clean.filter(col(\"is_default\") == True) \\\n",
+							"    .select(\"customer_id\").distinct().count()\n",
+							"\n",
+							"print(f\"Total clients avec adresse: {total_clients}\")\n",
+							"print(f\"Clients avec défaut après correction: {clients_avec_defaut_final}\")"
+						],
+						"outputs": [],
+						"execution_count": 669
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_addresses_clean = df_addresses_clean.cache()\n",
+							"df_addresses_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 670
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_addresses_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/customer_addresses/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 671
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 8 - promotions.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions.count()"
+						],
+						"outputs": [],
+						"execution_count": 672
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count,col,when,concat,lit,datediff"
+						],
+						"outputs": [],
+						"execution_count": 673
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(f\"nombre de lignes avant déduplication {df_promotions.count()}\")\n",
+							"df_promotions_clean = df_promotions.dropDuplicates([\"promotion_id\"])\n",
+							"print(f\"nombre de lignes avant déduplication {df_promotions_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 674
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_promotions_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 675
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Génération des codes promotionnels manquants\n",
+							"df_promotions_clean = df_promotions_clean.withColumn(\"promo_code\",when(\n",
+							"    col(\"promo_code\").isNull(),concat(lit(\"PROMO_\"),col(\"promotion_id\"))\n",
+							").otherwise(col(\"promo_code\")))"
+						],
+						"outputs": [],
+						"execution_count": 676
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_promotions_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 677
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Analyse des remisesAnalyse des remises\n",
+							"df_promotions_clean.select(col(\"discount_pct\")).describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 678
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions_clean.filter(col(\"discount_pct\")>100).count()"
+						],
+						"outputs": [],
+						"execution_count": 679
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#correction des remises\n",
+							"df_promotions_clean = df_promotions_clean.withColumn(\"discount_pct\",when(\n",
+							"    col(\"discount_pct\")>100,100\n",
+							").otherwise(col(\"discount_pct\")))"
+						],
+						"outputs": [],
+						"execution_count": 680
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions_clean.select(col(\"min_purchase\")).describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 681
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#correction des dates\n",
+							"df_promotions_clean = df_promotions_clean.withColumn(\n",
+							"    \"diff_days\", \n",
+							"    datediff(col(\"end_date\"), col(\"start_date\"))\n",
+							")\n",
+							"df_promotions_clean = df_promotions_clean.withColumn(\"end_date\",when(col(\"diff_days\")<0,col(\"start_date\")).otherwise(col(\"end_date\")))\n",
+							"df_promotions_clean = df_promotions_clean.withColumn(\"start_date\",when(col(\"diff_days\")<0,col(\"end_date\")).otherwise(col(\"start_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 682
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_promotions_clean = df_promotions_clean.cache()\n",
+							"df_promotions_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 683
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/promotions\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 684
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 9 - shipments.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_shipments.count()"
+						],
+						"outputs": [],
+						"execution_count": 685
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(f\"nombre de lignes avant déduplication {df_shipments.count()}\")\n",
+							"df_shipments_clean = df_shipments.dropDuplicates([\"shipment_id\"])\n",
+							"print(f\"nombre de lignes après déduplication {df_shipments_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 686
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count, when ,col, trim, lower, length, concat, lit, lpad, substring, regexp_replace, to_date, least, greatest,dateadd,percentile_approx,datediff"
+						],
+						"outputs": [],
+						"execution_count": 687
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_shipments_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_shipments_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 688
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Analyse des transporteurs\n",
+							"df_shipments_clean.groupBy(col(\"carrier\")).count().orderBy(col(\"carrier\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 689
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Remplacement des transporteurs invalides\n",
+							"carrier_invalid = [\"unk\",\"n/a\",\"other\",\"unknown\",\"null\",\"???\",\"-1\",\"none\"]\n",
+							"df_shipments_clean = df_shipments_clean.withColumn(\"carrier\",when(\n",
+							"    (trim(lower(col(\"carrier\"))).isNull()) | (trim(lower(col(\"carrier\"))).isin(carrier_invalid)),\"inconnu\"\n",
+							"    ).otherwise(col(\"carrier\"))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 690
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_shipments_clean.groupBy(col(\"carrier\")).count().orderBy(col(\"carrier\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 691
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_shipments_clean.groupBy(length(col(\"tracking_number\")).alias(\"length\")).count().orderBy(col(\"length\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 692
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#génération des tracking manquantes\n",
+							"df_shipments_clean = df_shipments_clean.withColumn(\"tracking_number\",\n",
+							"    when(\n",
+							"        col(\"tracking_number\").isNull(),concat(lit(\"TRK\"),lpad(col(\"shipment_id\"),12,\"0\"))\n",
+							"    ).otherwise(col(\"tracking_number\")))"
+						],
+						"outputs": [],
+						"execution_count": 693
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_shipments_clean.groupBy(length(col(\"tracking_number\")).alias(\"length\")).count().orderBy(col(\"length\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 694
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des formats invalides des dates\n",
+							"df_shipments_clean = df_shipments_clean\\\n",
+							"    .withColumn(\"delivery_date\",regexp_replace(col(\"delivery_date\"),\"[/.]\",\"-\"))\\\n",
+							"    .withColumn(\"delivery_date\",\n",
+							"        when(col(\"delivery_date\").rlike(r'^\\d{8}'),\n",
+							"            concat(substring(col(\"delivery_date\"),1,4),lit(\"-\"),\n",
+							"            substring(col(\"delivery_date\"),5,2),lit(\"-\"),\n",
+							"            substring(col(\"delivery_date\"),7,2)\n",
+							"        )).otherwise(col(\"delivery_date\")))\\\n",
+							"    .withColumn(\"delivery_date\",\n",
+							"        when(col(\"delivery_date\").rlike(r'^\\d{2}-\\d{2}-\\d{4}'),concat(\n",
+							"            substring(col(\"delivery_date\"),-4,4),lit(\"-\"),\n",
+							"            substring(col(\"delivery_date\"),1,2),lit(\"-\"),\n",
+							"            substring(col(\"delivery_date\"),4,2))\n",
+							"        ).otherwise(col(\"delivery_date\")))\\\n",
+							"    .withColumn(\"delivery_date\",to_date(col(\"delivery_date\")))\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 695
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Médiane du délai uniquement sur les lignes Delivered valides\n",
+							"df_shipments_clean.filter(\n",
+							"    (col(\"status\") == \"Delivered\") & (col(\"delivery_date\").isNotNull())\n",
+							").select(\n",
+							"    percentile_approx(datediff(col(\"delivery_date\"), col(\"ship_date\")), 0.5).alias(\"delai_median\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 696
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Remplissage des dates manquantes\n",
+							"df_shipments_clean = df_shipments_clean.withColumn(\"delivery_date\",when(\n",
+							"    (col(\"delivery_date\").isNull()) & (col(\"status\") == \"Delivered\"),dateadd(col(\"ship_date\") , 7)\n",
+							").otherwise(col(\"delivery_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 697
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#correction des dates invalides (swap des dates)\n",
+							"df_shipments_clean = df_shipments_clean.withColumn(\n",
+							"    \"ship_date_new\",\n",
+							"    when(\n",
+							"        col(\"ship_date\").isNotNull() & col(\"delivery_date\").isNotNull(),\n",
+							"        least(col(\"ship_date\"), col(\"delivery_date\"))\n",
+							"    ).otherwise(col(\"ship_date\"))  \n",
+							").withColumn(\n",
+							"    \"delivery_date_new\",\n",
+							"    when(\n",
+							"        col(\"ship_date\").isNotNull() & col(\"delivery_date\").isNotNull(),\n",
+							"        greatest(col(\"ship_date\"), col(\"delivery_date\"))\n",
+							"    ).otherwise(col(\"delivery_date\"))  \n",
+							").withColumn(\"ship_date\", col(\"ship_date_new\")) \\\n",
+							" .withColumn(\"delivery_date\", col(\"delivery_date_new\")) \\\n",
+							" .drop(\"ship_date_new\", \"delivery_date_new\")"
+						],
+						"outputs": [],
+						"execution_count": 698
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Statistiques sur les coûts\n",
+							"df_shipments_clean.select(\"shipping_cost\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 699
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Correction des coûts négatifs\n",
+							"from pyspark.sql.functions import abs\n",
+							"df_shipments_clean = df_shipments_clean.withColumn(\n",
+							"    \"shipping_cost\",when(col(\"shipping_cost\")<0,abs(col(\"shipping_cost\"))).otherwise(col(\"shipping_cost\"))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 700
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Calcul des percentiles\n",
+							"df_shipments_clean.select(\n",
+							"    percentile_approx(col(\"shipping_cost\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"shipping_cost\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"shipping_cost\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"shipping_cost\"),0.95).alias(\"P95\"),\n",
+							"    percentile_approx(col(\"shipping_cost\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 701
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des valeurs aberrantes\n",
+							"df_shipments_clean = df_shipments_clean.filter(~(col(\"shipping_cost\")>500))"
+						],
+						"outputs": [],
+						"execution_count": 702
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_shipments_clean = df_shipments_clean.cache()\n",
+							"df_shipments_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 703
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_shipments_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/shipments/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 704
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 10 - order_items.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items.count()"
+						],
+						"outputs": [],
+						"execution_count": 705
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(f\"nombre de lignes avant déduplication : {df_items.count()}\")\n",
+							"df_items_clean = df_items.dropDuplicates([\"order_item_id\"])\n",
+							"print(f\"nombre de lignes après déduplication : {df_items_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 706
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count, col, when, percentile_approx,abs,coalesce"
+						],
+						"outputs": [],
+						"execution_count": 707
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_items_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 708
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Compléter les prix manquants\n",
+							"df_items_clean = df_items_clean.join(df_products_clean.select(\"product_id\",col(\"price\")),on=\"product_id\",how=\"left\")\n",
+							"df_items_clean = df_items_clean.withColumn(\"unit_price\",\n",
+							"    coalesce(col(\"unit_price\"), col(\"price\"))\n",
+							").drop(\"price\")"
+						],
+						"outputs": [],
+						"execution_count": 709
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_items_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 710
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Calcul des percentiles du prix\n",
+							"df_items_clean.select(\n",
+							"    percentile_approx(col(\"unit_price\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.95).alias(\"P95\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 711
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean = df_items_clean.withColumn(\"unit_price\",when(col(\"unit_price\").isNull(),34).otherwise(col(\"unit_price\")))"
+						],
+						"outputs": [],
+						"execution_count": 712
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Statistiques descriptives\n",
+							"df_items_clean.select(\"quantity\", \"unit_price\", \"discount_applied\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 713
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Correction des valeurs négatives\n",
+							"df_items_clean = df_items_clean\\\n",
+							"    .withColumn(\"quantity\",abs(col(\"quantity\")))\\\n",
+							"    .withColumn(\"unit_price\",abs(col(\"unit_price\")))"
+						],
+						"outputs": [],
+						"execution_count": 714
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean.select(\n",
+							"    percentile_approx(col(\"quantity\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.95).alias(\"P95\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 715
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des quantités aberrantes\n",
+							"df_items_clean = df_items_clean.filter(col(\"quantity\")<=100)"
+						],
+						"outputs": [],
+						"execution_count": 716
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean.select(\n",
+							"    percentile_approx(col(\"unit_price\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.95).alias(\"P95\"),\n",
+							"    percentile_approx(col(\"unit_price\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 717
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des prix aberrants\n",
+							"df_items_clean = df_items_clean.filter(col(\"unit_price\")<=5000)"
+						],
+						"outputs": [],
+						"execution_count": 718
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Analyse des remises\n",
+							"df_items_clean.groupBy(\"discount_applied\").count().orderBy(\"discount_applied\").show(50)"
+						],
+						"outputs": [],
+						"execution_count": 719
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Remplacement des remises nulles\n",
+							"df_items_clean = df_items_clean.withColumn(\"discount_applied\",when(\n",
+							"    col(\"discount_applied\").isNull(),0.0\n",
+							").otherwise(col(\"discount_applied\")))"
+						],
+						"outputs": [],
+						"execution_count": 720
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_items_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 721
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_items_clean = df_items_clean.cache()\n",
+							"df_items_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 722
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_items_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/order_items/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 723
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Table 11 -  returns.csv**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns.count()"
+						],
+						"outputs": [],
+						"execution_count": 724
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns.select([count(when(col(c).isNull(),c)).alias(c) for c in df_returns.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 725
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(f\"nombre de lignes avant déduplication: {df_returns.count()}\")\n",
+							"df_returns_clean = df_returns.dropDuplicates([\"return_id\"])\n",
+							"print(f\"nombre de lignes après déduplication : {df_returns_clean.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 726
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Analyse des raisons de retour\n",
+							"df_returns_clean.groupBy(\"return_reason\").count().orderBy(col(\"return_reason\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 727
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import trim,lower,regexp_replace,concat,when,col,substring,lit,to_date"
+						],
+						"outputs": [],
+						"execution_count": 728
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Nettoyage des raisons de retour\n",
+							"invalid_reason = [\"unk\",\"n/a\",\"null\",\"none\",\"???\",\"-1\",\"unknown\",\"other\"]\n",
+							"df_returns_clean = df_returns_clean.withColumn(\"return_reason\",when(\n",
+							"    (trim(lower(col(\"return_reason\"))).isin(invalid_reason)) | (col(\"return_reason\").isNull()),\"inconnu\"\n",
+							").otherwise(col(\"return_reason\")))"
+						],
+						"outputs": [],
+						"execution_count": 729
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns_clean.select(\"quantity\",\"refund_amount\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 730
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des signes négatifs\n",
+							"df_returns_clean = df_returns_clean.withColumn(\"quantity\",abs(col(\"quantity\")))\\\n",
+							"    .withColumn(\"refund_amount\",abs(col(\"refund_amount\")))"
+						],
+						"outputs": [],
+						"execution_count": 731
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns_clean.select(\n",
+							"    percentile_approx(col(\"quantity\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.95).alias(\"P95\"),\n",
+							"    percentile_approx(col(\"quantity\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 732
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des quantités irréalistes\n",
+							"df_returns_clean = df_returns_clean.filter(col(\"quantity\")<=100)"
+						],
+						"outputs": [],
+						"execution_count": 733
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns_clean.select(\n",
+							"    percentile_approx(col(\"refund_amount\"),0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(col(\"refund_amount\"),0.5).alias(\"médiane\"),\n",
+							"    percentile_approx(col(\"refund_amount\"),0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(col(\"refund_amount\"),0.95).alias(\"P95\"),\n",
+							"    percentile_approx(col(\"refund_amount\"),0.99).alias(\"P99\")\n",
+							").show()"
+						],
+						"outputs": [],
+						"execution_count": 734
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Suppression des remboursements extrêmes\n",
+							"df_returns_clean = df_returns_clean.filter(col(\"refund_amount\")<=2000)"
+						],
+						"outputs": [],
+						"execution_count": 735
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns_clean.select([count(when(col(c).isNull(),c)).alias(c) for c in df_returns_clean.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 736
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Uniformisation des dates\n",
+							"df_returns_clean = df_returns_clean\\\n",
+							"    .withColumn(\"return_date\",regexp_replace(col(\"return_date\"),\"[./]\",\"-\"))\\\n",
+							"    .withColumn(\"return_date\",when(col(\"return_date\").rlike(r'^\\d{8}$'),\n",
+							"        concat(\n",
+							"            substring(col(\"return_date\"),1,4),lit(\"-\"),\n",
+							"            substring(col(\"return_date\"),5,2),lit(\"-\"),\n",
+							"            substring(col(\"return_date\"),7,2)\n",
+							"        )\n",
+							"    ).otherwise(col(\"return_date\")))\\\n",
+							"    .withColumn(\"return_date\",when(col(\"return_date\").rlike(r'^\\d{2}-\\d{2}-\\d{4}$'),\n",
+							"        concat(\n",
+							"            substring(col(\"return_date\"),-4,4),lit(\"-\"),\n",
+							"            substring(col(\"return_date\"),1,2),lit(\"-\"),\n",
+							"            substring(col(\"return_date\"),4,2)\n",
+							"        )\n",
+							"    ).otherwise(col(\"return_date\")))\\\n",
+							"    .withColumn(\"return_date\",to_date(col(\"return_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 737
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_returns_clean = df_returns_clean.cache()\n",
+							"df_returns_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 738
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_returns_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/returns/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 739
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 12 - reviews.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#fonction pour supprimer les doublons\n",
+							"def dedupliquer(df,pk,nom_table):\n",
+							"    avant = df.count()\n",
+							"    df_result = df.dropDuplicates([pk])\n",
+							"    apres = df_result.count()\n",
+							"    print(f\"table [{nom_table}] déduplication ({pk}): {avant} -> {apres} ({avant - apres} doublons supprimés)\")\n",
+							"    return df_result\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 740
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#fonction pour compter les nulls\n",
+							"def compterNull(df,nom_table=\"\"):\n",
+							"    print(f\"Nulls pour {nom_table}\\n\")\n",
+							"    df.select([count(when(col(c).isNull(),c)).alias(c) for c in df.columns]).show()"
+						],
+						"outputs": [],
+						"execution_count": 741
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_reviews.count()"
+						],
+						"outputs": [],
+						"execution_count": 742
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_reviews_clean = dedupliquer(df_reviews,\"review_id\",\"reviews\")"
+						],
+						"outputs": [],
+						"execution_count": 743
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des dates\n",
+							"df_reviews_clean = df_reviews_clean\\\n",
+							"    .withColumn(\"review_date\",col(\"review_date\").cast(\"string\"))\\\n",
+							"    .withColumn(\"review_date\",regexp_replace(col(\"review_date\"),\"[./]\",\"-\"))\\\n",
+							"    .withColumn(\"review_date\",when(col(\"review_date\").rlike(r'^\\d{8}$'),concat(\n",
+							"        substring(col(\"review_date\"),1,4),lit(\"-\"),\n",
+							"        substring(col(\"review_date\"),5,2),lit(\"-\"),\n",
+							"        substring(col(\"review_date\"),7,2)\n",
+							"    )).otherwise(col(\"review_date\")))\\\n",
+							"    .withColumn(\"review_date\",when(col(\"review_date\").rlike(r'^\\d{2}-\\d{2}-\\d{4}$'),concat(\n",
+							"        substring(col(\"review_date\"),-4,4),lit(\"-\"),\n",
+							"        substring(col(\"review_date\"),1,2),lit(\"-\"),\n",
+							"        substring(col(\"review_date\"),4,2)\n",
+							"    )).otherwise(col(\"review_date\")))\\\n",
+							"    .withColumn(\"review_date\",to_date(col(\"review_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 744
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#compter les nulls\n",
+							"compterNull(df_reviews_clean,\"reviews\")"
+						],
+						"outputs": [],
+						"execution_count": 745
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_reviews_clean.select(\"rating\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 746
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_reviews_clean.groupBy(\"rating\").count().orderBy(\"rating\").show()"
+						],
+						"outputs": [],
+						"execution_count": 747
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#correction des notes\n",
+							"invalid_rating = [-1,0,6,7,99]\n",
+							"df_reviews_clean = df_reviews_clean.withColumn(\"rating\",when(col(\"rating\").isin(invalid_rating),None).otherwise(col(\"rating\")))\n",
+							"#calcul de la médiane\n",
+							"mediane_rating = df_reviews_clean.select(percentile_approx(col(\"rating\"),0.5)).collect()[0][0]\n",
+							"df_reviews_clean = df_reviews_clean.withColumn(\"rating\",coalesce(col(\"rating\"),lit(mediane_rating)))"
+						],
+						"outputs": [],
+						"execution_count": 748
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_reviews_clean.groupBy(\"rating\").count().orderBy(\"rating\").show()"
+						],
+						"outputs": [],
+						"execution_count": 749
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des commentaires manuqants\n",
+							"df_reviews_clean = df_reviews_clean.withColumn(\"review_text\",coalesce(col(\"review_text\"),lit(\"Pas de commentaire\")))"
+						],
+						"outputs": [],
+						"execution_count": 750
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_reviews_clean, \"reviews\")"
+						],
+						"outputs": [],
+						"execution_count": 751
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"df_reviews_clean.groupBy(\"is_verified\").count().orderBy(col(\"is_verified\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 752
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_reviews_clean = df_reviews_clean.cache()\n",
+							"df_reviews_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 753
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_reviews_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/reviews/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 754
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 13 - inventory.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_inventory.count()"
+						],
+						"outputs": [],
+						"execution_count": 755
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_inventory_clean = dedupliquer(df_inventory,\"inventory_id\",\"inventory\")"
+						],
+						"outputs": [],
+						"execution_count": 756
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import col,count,when,regexp_replace,lit,to_date,concat,substring,percentile_approx,abs"
+						],
+						"outputs": [],
+						"execution_count": 757
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des dates\n",
+							"df_inventory_clean = df_inventory_clean\\\n",
+							"    .withColumn(\"last_restock_date\",col(\"last_restock_date\").cast(\"string\"))\\\n",
+							"    .withColumn(\"last_restock_date\",regexp_replace(col(\"last_restock_date\"),\"[./]\",\"-\"))\\\n",
+							"    .withColumn(\"last_restock_date\",when(col(\"last_restock_date\").rlike(r'^\\d{8}$'),concat(\n",
+							"        substring(col(\"last_restock_date\"),1,4),lit(\"-\"),\n",
+							"        substring(col(\"last_restock_date\"),5,2),lit(\"-\"),\n",
+							"        substring(col(\"last_restock_date\"),7,2)\n",
+							"    )).otherwise(col(\"last_restock_date\")))\\\n",
+							"    .withColumn(\"last_restock_date\",when(col(\"last_restock_date\").rlike(r'^\\d{2}-\\d{2}-\\d{4}$'),concat(\n",
+							"        substring(col(\"last_restock_date\"),-4,4),lit(\"-\"),\n",
+							"        substring(col(\"last_restock_date\"),1,2),lit(\"-\"),\n",
+							"        substring(col(\"last_restock_date\"),4,2)\n",
+							"    )).otherwise(col(\"last_restock_date\")))\\\n",
+							"    .withColumn(\"last_restock_date\",to_date(col(\"last_restock_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 758
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_inventory_clean.select(\"quantity\",\"reorder_level\",\"unit_cost\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 759
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_inventory_clean.select(\n",
+							"    percentile_approx(\"quantity\", 0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(\"quantity\", 0.5).alias(\"mediane\"),\n",
+							"    percentile_approx(\"quantity\", 0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(\"quantity\", 0.95).alias(\"P95\"),\n",
+							"    percentile_approx(\"quantity\", 0.99).alias(\"P99\")\n",
+							").show()\n",
+							"\n",
+							"# Combien de négatifs \n",
+							"print(f\"Quantités négatives : {df_inventory_clean.filter(col('quantity') < 0).count()}\")\n",
+							"\n",
+							"# Combien de valeurs extrêmes \n",
+							"print(f\"Quantités > 10000 : {df_inventory_clean.filter(col('quantity') > 10000).count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 760
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des quantités négatives\n",
+							"df_inventory_clean = df_inventory_clean.withColumn(\"quantity\",abs(col(\"quantity\")))\n",
+							"df_inventory_clean = df_inventory_clean.filter(col(\"quantity\")<=10000)"
+						],
+						"outputs": [],
+						"execution_count": 761
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_inventory_clean,\"inventory\")"
+						],
+						"outputs": [],
+						"execution_count": 762
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Jointure avec products pour récupérer cost_price\n",
+							"df_inventory_clean = df_inventory_clean.join(df_products_clean.select(\"product_id\",\"cost_price\"),on =\"product_id\",how=\"left\")\n",
+							"df_inventory_clean = df_inventory_clean.withColumn(\n",
+							"    \"unit_cost\", coalesce(col(\"unit_cost\"), col(\"cost_price\"))\n",
+							").drop(\"cost_price\")"
+						],
+						"outputs": [],
+						"execution_count": 763
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_inventory_clean, \"inventory\")"
+						],
+						"outputs": [],
+						"execution_count": 764
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"mediane_unit_cost = df_inventory_clean.select(percentile_approx(col(\"unit_cost\"), 0.5)).collect()[0][0]\n",
+							"\n",
+							"df_inventory_clean = df_inventory_clean.withColumn(\n",
+							"    \"unit_cost\", coalesce(col(\"unit_cost\"), lit(mediane_unit_cost))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 765
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_inventory_clean = df_inventory_clean.cache()\n",
+							"df_inventory_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 766
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_inventory_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/inventory/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 767
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 14 - loyalty_points.csv </mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_loyalty_points.count()"
+						],
+						"outputs": [],
+						"execution_count": 768
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_loyalty_clean = dedupliquer(df_loyalty_points,\"loyalty_id\",\"loyalty_points\")"
+						],
+						"outputs": [],
+						"execution_count": 769
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_loyalty_clean.groupBy(\"points_type\").count().orderBy(col(\"points_type\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 770
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des points_type\n",
+							"invalid_points_type = [\"unk\", \"other\", \"n/a\", \"unknown\", \"null\", \"none\", \"???\", \"-1\"]\n",
+							"\n",
+							"df_loyalty_clean = df_loyalty_clean.withColumn(\n",
+							"    \"points_type\",\n",
+							"    when(\n",
+							"        trim(lower(col(\"points_type\"))).isin(invalid_points_type) | col(\"points_type\").isNull(),\n",
+							"        \"inconnu\"\n",
+							"    ).otherwise(col(\"points_type\"))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 771
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_loyalty_clean.groupBy(\"points_type\").count().orderBy(col(\"points_type\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 772
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des dates\n",
+							"df_loyalty_clean = df_loyalty_clean\\\n",
+							"    .withColumn(\"transaction_date\",col(\"transaction_date\").cast(\"string\"))\\\n",
+							"    .withColumn(\"transaction_date\",regexp_replace(col(\"transaction_date\"),\"[./]\",\"-\"))\\\n",
+							"    .withColumn(\"transaction_date\",when(col(\"transaction_date\").rlike(r'^\\d{8}$'),concat(\n",
+							"        substring(col(\"transaction_date\"),1,4),lit(\"-\"),\n",
+							"        substring(col(\"transaction_date\"),5,2),lit(\"-\"),\n",
+							"        substring(col(\"transaction_date\"),7,2)\n",
+							"    )).otherwise(col(\"transaction_date\")))\\\n",
+							"    .withColumn(\"transaction_date\",when(col(\"transaction_date\").rlike(r'^\\d{2}-\\d{2}-\\d{4}$'),concat(\n",
+							"        substring(col(\"transaction_date\"),-4,4),lit(\"-\"),\n",
+							"        substring(col(\"transaction_date\"),1,2),lit(\"-\"),\n",
+							"        substring(col(\"transaction_date\"),4,2)\n",
+							"    )).otherwise(col(\"transaction_date\")))\\\n",
+							"    .withColumn(\"transaction_date\",to_date(col(\"transaction_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 773
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_loyalty_clean,\"loyalty_points\")"
+						],
+						"outputs": [],
+						"execution_count": 774
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_loyalty_clean.select(\"points_earned\",\"points_redeemed\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 775
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#correction des valeurs négatives\n",
+							"df_loyalty_clean = df_loyalty_clean.withColumn(\"points_earned\",abs(col(\"points_earned\")))"
+						],
+						"outputs": [],
+						"execution_count": 776
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#remplacement des nulls\n",
+							"df_loyalty_clean = df_loyalty_clean\\\n",
+							"    .withColumn(\"points_earned\",coalesce(col(\"points_earned\"),lit(0)))\\\n",
+							"    .withColumn(\"points_redeemed\",coalesce(col(\"points_redeemed\"),lit(0)))"
+						],
+						"outputs": [],
+						"execution_count": 777
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#réorganisation des colonnes\n",
+							"df_loyalty_clean = df_loyalty_clean\\\n",
+							"    .withColumn(\"redeemed_new\",least(col(\"points_redeemed\"),col(\"points_earned\")))\\\n",
+							"    .withColumn(\"earned_new\",greatest(col(\"points_redeemed\"),col(\"points_earned\")))\\\n",
+							"    .withColumn(\"points_redeemed\",col(\"redeemed_new\"))\\\n",
+							"    .withColumn(\"points_earned\",col(\"earned_new\"))\\\n",
+							"    .drop(\"redeemed_new\",\"earned_new\")"
+						],
+						"outputs": [],
+						"execution_count": 778
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_loyalty_clean,\"loyalty_points\")"
+						],
+						"outputs": [],
+						"execution_count": 779
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_loyalty_clean = df_loyalty_clean.cache()\n",
+							"df_loyalty_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 780
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_loyalty_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/loyalty_points/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 781
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Table 15 - payments.csv</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments.count()"
+						],
+						"outputs": [],
+						"execution_count": 782
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments_clean = dedupliquer(df_payments,\"payment_id\",\"payments\")"
+						],
+						"outputs": [],
+						"execution_count": 783
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments_clean.groupBy(\"payment_method\").count().orderBy(col(\"payment_method\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 784
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#Nettoyage des payment_method invalides\n",
+							"invalid_method = [\"unk\", \"other\", \"n/a\", \"unknown\", \"null\", \"none\", \"???\", \"-1\"]\n",
+							"\n",
+							"df_payments_clean = df_payments_clean.withColumn(\n",
+							"    \"payment_method\",\n",
+							"    when(\n",
+							"        trim(lower(col(\"payment_method\"))).isin(invalid_method) | col(\"payment_method\").isNull(),\n",
+							"        \"inconnu\"\n",
+							"    ).otherwise(col(\"payment_method\"))\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 785
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments_clean.groupBy(\"status\").count().orderBy(col(\"status\"),ascending = False).show()"
+						],
+						"outputs": [],
+						"execution_count": 786
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#nettoyage des dates\n",
+							"df_payments_clean = df_payments_clean\\\n",
+							"    .withColumn(\"payment_date\",col(\"payment_date\").cast(\"string\"))\\\n",
+							"    .withColumn(\"payment_date\",regexp_replace(col(\"payment_date\"),\"[./]\",\"-\"))\\\n",
+							"    .withColumn(\"payment_date\",when(col(\"payment_date\").rlike(r'^\\d{8}$'),concat(\n",
+							"        substring(col(\"payment_date\"),1,4),lit(\"-\"),\n",
+							"        substring(col(\"payment_date\"),5,2),lit(\"-\"),\n",
+							"        substring(col(\"payment_date\"),7,2)\n",
+							"    )).otherwise(col(\"payment_date\")))\\\n",
+							"    .withColumn(\"payment_date\",when(col(\"payment_date\").rlike(r'^\\d{2}-\\d{2}-\\d{4}$'),concat(\n",
+							"        substring(col(\"payment_date\"),-4,4),lit(\"-\"),\n",
+							"        substring(col(\"payment_date\"),1,2),lit(\"-\"),\n",
+							"        substring(col(\"payment_date\"),4,2)\n",
+							"    )).otherwise(col(\"payment_date\")))\\\n",
+							"    .withColumn(\"payment_date\",to_date(col(\"payment_date\")))"
+						],
+						"outputs": [],
+						"execution_count": 787
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments_clean.select(\"amount\").describe().show()"
+						],
+						"outputs": [],
+						"execution_count": 788
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments_clean = df_payments_clean.withColumn(\"amount\",abs(col(\"amount\")))"
+						],
+						"outputs": [],
+						"execution_count": 789
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_payments_clean,\"payments\")"
+						],
+						"outputs": [],
+						"execution_count": 790
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import col, percentile_approx\n",
+							"\n",
+							"df_payments_clean.select(\n",
+							"    percentile_approx(\"amount\", 0.25).alias(\"Q1\"),\n",
+							"    percentile_approx(\"amount\", 0.5).alias(\"mediane\"),\n",
+							"    percentile_approx(\"amount\", 0.75).alias(\"Q3\"),\n",
+							"    percentile_approx(\"amount\", 0.95).alias(\"P95\"),\n",
+							"    percentile_approx(\"amount\", 0.99).alias(\"P99\")\n",
+							").show()\n",
+							"\n",
+							"# Combien de négatifs \n",
+							"print(f\"Montants négatifs : {df_payments_clean.filter(col('amount') < 0).count()}\")\n",
+							"#combien de montaux très hauts\n",
+							"print(f\"Montants > 10000 : {df_payments_clean.filter(col('amount') > 10000).count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 791
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"mediane_amount = df_payments_clean.select(percentile_approx(col(\"amount\"), 0.5)).collect()[0][0]\n",
+							"df_payments_clean = df_payments_clean.withColumn(\"amount\",coalesce(col(\"amount\"),lit(mediane_amount)))\n",
+							"df_payments_clean = df_payments_clean.filter(col(\"amount\")<=10000)"
+						],
+						"outputs": [],
+						"execution_count": 792
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"compterNull(df_payments_clean,\"payments\")"
+						],
+						"outputs": [],
+						"execution_count": 793
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#mise en cache\n",
+							"df_payments_clean = df_payments_clean.cache()\n",
+							"df_payments_clean.count() "
+						],
+						"outputs": [],
+						"execution_count": 794
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_payments_clean.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://curated@adlsbougrine.dfs.core.windows.net/payments/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 795
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_products_clean.unpersist()\n",
+							"df_customers_clean.unpersist()\n",
+							"df_orders_clean.unpersist()\n",
+							"df_addresses_clean.unpersist()\n",
+							"df_payments_clean.unpersist()\n",
+							"df_shipments_clean.unpersist()\n",
+							"df_warehouses_clean.unpersist()\n",
+							"df_loyalty_clean.unpersist()\n",
+							"df_inventory_clean.unpersist()\n",
+							"df_reviews_clean.unpersist()\n",
+							"df_returns_clean.unpersist()\n",
+							"df_categories_clean.unpersist()\n",
+							"df_suppliers_clean.unpersist()\n",
+							"df_items_clean.unpersist()\n",
+							"df_promotions_clean.unpersist()"
+						],
+						"outputs": [],
+						"execution_count": 796
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(\"Nombre de cœurs disponibles :\", spark.sparkContext.defaultParallelism)\n",
+							"print()\n",
+							"\n",
+							"for nom, df in tables_chargees.items():\n",
+							"    nb_partitions_actuelles = df.rdd.getNumPartitions()\n",
+							"    nb_lignes = df.count()\n",
+							"    print(f\"{nom}: {nb_partitions_actuelles} partitions actuelles, {nb_lignes} lignes\")"
+						],
+						"outputs": [],
+						"execution_count": 797
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							""
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/NB_Silver_To_Gold')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "SPDLake",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "d8186cc5-e747-4ac2-8a6d-c88509544a95"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/bdfa1129-0773-4909-948b-f81c94886e31/resourceGroups/rgJihaneBougrine/providers/Microsoft.Synapse/workspaces/synapsebougrine/bigDataPools/SPDLake",
+						"name": "SPDLake",
+						"type": "Spark",
+						"endpoint": "https://synapsebougrine.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/SPDLake",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.5",
+						"nodeCount": 3,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"source": [
+							"#Lecture des données \"curated\"\n",
+							"def read_curated(table_name):\n",
+							"    base_path = \"abfss://curated@adlsbougrine.dfs.core.windows.net/\"\n",
+							"    return spark.read.parquet(f\"{base_path}{table_name}/\")\n",
+							"\n",
+							"# Lecture\n",
+							"df_orders = read_curated(\"orders\")\n",
+							"df_customers = read_curated(\"customers\")\n",
+							"df_products = read_curated(\"products\")\n",
+							"df_inventory = read_curated(\"inventory\")\n",
+							"df_categories = read_curated(\"categories\")\n",
+							"df_shipments = read_curated(\"shipments\")\n",
+							"df_loyalty_points = read_curated(\"loyalty_points\")\n",
+							"df_promotions = read_curated(\"promotions\")\n",
+							"df_suppliers = read_curated(\"suppliers\")\n",
+							"df_returns = read_curated(\"returns\")\n",
+							"df_reviews= read_curated(\"reviews\")\n",
+							"df_payments = read_curated(\"payments\")\n",
+							"df_warehouses = read_curated(\"warehouses\")\n",
+							"df_customer_addresses = read_curated(\"customer_addresses\")\n",
+							"df_order_items = read_curated(\"order_items\")"
+						],
+						"outputs": [],
+						"execution_count": 4
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import min as spark_min, max as spark_max\n",
+							"\n",
+							"#Analyse des plages de dates des tables\n",
+							"\n",
+							"print(\"Orders\")\n",
+							"df_orders.select(spark_min(\"order_date\"), spark_max(\"order_date\")).show()\n",
+							"\n",
+							"print(\"Payments\")\n",
+							"df_payments.select(spark_min(\"payment_date\"), spark_max(\"payment_date\")).show()\n",
+							"\n",
+							"print(\"Shipments\")\n",
+							"df_shipments.select(spark_min(\"ship_date\"), spark_max(\"delivery_date\")).show()\n",
+							"\n",
+							"print(\"Returns\")\n",
+							"df_returns.select(spark_min(\"return_date\"), spark_max(\"return_date\")).show()\n",
+							"\n",
+							"print(\"Reviews\")\n",
+							"df_reviews.select(spark_min(\"review_date\"), spark_max(\"review_date\")).show()\n",
+							"\n",
+							"print(\"Inventory\")\n",
+							"df_inventory.select(spark_min(\"last_restock_date\"), spark_max(\"last_restock_date\")).show()\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 5
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Création de la dimensions dim_date</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"#Générer toutes les dates entre 2020 et 2025\n",
+							"from pyspark.sql.functions import date_format,col,when,year,quarter,month,weekofyear,dayofmonth,dayofweek\n",
+							"df_date_range = spark.sql(\"\"\"\n",
+							"    SELECT explode(sequence (to_date('2020-01-01'),to_date('2024-12-31'),interval 1 day)) as date\n",
+							"\"\"\")\n",
+							"#création de la dimension dim_date\n",
+							"dim_date = df_date_range\\\n",
+							"    .withColumn(\"date_id\", date_format(col(\"date\"), \"yyyyMMdd\").cast(\"integer\"))\\\n",
+							"    .withColumn(\"year\", year(col(\"date\")))\\\n",
+							"    .withColumn(\"quarter\", quarter(col(\"date\")))\\\n",
+							"    .withColumn(\"month\", month(col(\"date\")))\\\n",
+							"    .withColumn(\"month_name\", date_format(col(\"date\"), \"MMMM\"))\\\n",
+							"    .withColumn(\"week\", weekofyear(col(\"date\")))\\\n",
+							"    .withColumn(\"day\", dayofmonth(col(\"date\")))\\\n",
+							"    .withColumn(\"day_name\", date_format(col(\"date\"), \"EEEE\"))\\\n",
+							"    .withColumn(\"day_of_week\", dayofweek(col(\"date\")))\\\n",
+							"    .withColumn(\"semester\", when(col(\"month\") <= 6, 1).otherwise(2))\\\n",
+							"    .withColumn(\"is_weekend\", when(col(\"day_of_week\").isin(1, 7), True).otherwise(False))\n",
+							"\n",
+							"print(f\"Lignes générées : {dim_date.count()}\")\n",
+							"dim_date.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 6
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_date.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_date/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 7
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de la dimensions - dim_warehouses**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_warehouses.printSchema()\n",
+							"df_warehouses.show(5)\n",
+							"print(f\"Nombre de lignes : {df_warehouses.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 8
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_warehouses = df_warehouses\n",
+							"\n",
+							"dim_warehouses.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_warehouses/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 9
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de la dimesion - dim_promotions**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_promotions.printSchema()\n",
+							"df_promotions.show(5)\n",
+							"print(f\"Nombre de lignes : {df_promotions.count()}\")"
+						],
+						"outputs": [],
+						"execution_count": 10
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_promotions = df_promotions.drop(\"diff_days\")\n",
+							"\n",
+							"dim_promotions.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_promotions/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 11
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de la dimension - dim_products**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"print(\"Nombre de products:\", df_products.count())\n",
+							"print(\"Nombre de categories:\", df_categories.count())\n",
+							"print(\"Nombre de suppliers:\", df_suppliers.count())\n",
+							"\n",
+							"print(\"Nombre de category_id distincts dans categories:\", df_categories.select(\"category_id\").distinct().count())\n",
+							"print(\"Nombre de supplier_id distincts dans suppliers:\", df_suppliers.select(\"supplier_id\").distinct().count())"
+						],
+						"outputs": [],
+						"execution_count": 12
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_suppliers.show(2)"
+						],
+						"outputs": [],
+						"execution_count": 13
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_products = df_products\\\n",
+							"    .join(df_categories.select(\"category_id\",\"category_name\",\"parent_category\"), on = \"category_id\", how = \"left\")\\\n",
+							"    .join(df_suppliers.select(\"supplier_id\",\"supplier_name\",col(\"country\").alias(\"supplier_country\"),\n",
+							"        col(\"rating\").alias(\"supplier_rating\")),on=\"supplier_id\",how=\"left\")\n",
+							"print(f\"nombre de lignes : {dim_products.count()}\")\n",
+							"dim_products.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 14
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_products.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_products/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 15
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**création de la dimension - dim_customers**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import count as spark_count\n",
+							"\n",
+							"df_customer_addresses.filter(col(\"is_default\") == True) \\\n",
+							"    .groupBy(\"customer_id\") \\\n",
+							"    .agg(spark_count(\"*\").alias(\"nb_default\")) \\\n",
+							"    .groupBy(\"nb_default\").count().show()"
+						],
+						"outputs": [],
+						"execution_count": 16
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customer_addresses.show(4)"
+						],
+						"outputs": [],
+						"execution_count": 17
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customer_addresses.select(\"customer_id\").distinct().count()"
+						],
+						"outputs": [],
+						"execution_count": 18
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"df_customers.show(4)"
+						],
+						"outputs": [],
+						"execution_count": 19
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Nombre total de clients\n",
+							"print(\"Total clients:\", df_customers.count())\n",
+							"print(\"Total clients:\", df_customer_addresses.count())\n",
+							"\n",
+							"# Nombre de clients ayant au moins 1 adresse par défaut\n",
+							"print(\"Clients avec adresse par défaut:\", \n",
+							"      df_customer_addresses.filter(col(\"is_default\") == True).select(\"customer_id\").distinct().count())\n",
+							"\n",
+							"# Nombre de clients SANS adresse par défaut du tout\n",
+							"clients_sans_defaut = df_customers.select(\"customer_id\") \\\n",
+							"    .join(\n",
+							"        df_customer_addresses.filter(col(\"is_default\") == True).select(\"customer_id\"),\n",
+							"        on=\"customer_id\", how=\"left_anti\"\n",
+							"    )\n",
+							"print(\"Clients SANS adresse par défaut:\", clients_sans_defaut.count())"
+						],
+						"outputs": [],
+						"execution_count": 20
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"orphan_addresses = df_customer_addresses.select(\"customer_id\").distinct() \\\n",
+							"    .join(df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"left_anti\")\n",
+							"\n",
+							"print(\"customer_id dans customer_addresses mais absents de customers:\", orphan_addresses.count())"
+						],
+						"outputs": [],
+						"execution_count": 21
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"#extrait de l'adresse principale de chaque client\n",
+							"df_default_address = df_customer_addresses.filter(col(\"is_default\") == True)"
+						],
+						"outputs": [],
+						"execution_count": 22
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import sum as spark_sum\n",
+							"#agrège les points de fidélité par client \n",
+							"df_loyalty_agg = df_loyalty_points.groupBy(\"customer_id\").agg(\n",
+							"    spark_sum(\"points_earned\").alias(\"total_points_earned\"),\n",
+							"    spark_sum(\"points_redeemed\").alias(\"total_points_redeemed\")\n",
+							")\n",
+							"\n",
+							"print(\"Nombre de clients avec historique loyalty:\", df_loyalty_agg.count())\n",
+							"df_loyalty_agg.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 23
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_customers = df_customers \\\n",
+							"    .join(\n",
+							"        df_default_address.select(\n",
+							"            \"customer_id\",\n",
+							"            col(\"street\"),\n",
+							"            col(\"city\"),\n",
+							"            col(\"postal_code\"),\n",
+							"            col(\"country\")\n",
+							"        ),\n",
+							"        on=\"customer_id\", how=\"left\"\n",
+							"    ) \\\n",
+							"    .join(\n",
+							"        df_loyalty_agg,\n",
+							"        on=\"customer_id\", how=\"left\"\n",
+							"    ) \\\n",
+							"    .fillna({\"total_points_earned\": 0, \"total_points_redeemed\": 0})\n",
+							"\n",
+							"print(f\"Nombre de lignes : {dim_customers.count()}\")  \n",
+							"dim_customers.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 24
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"dim_customers.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_customers/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 25
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de la table de fait - fact_sales**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# order_id unique dans orders \n",
+							"print(\"Total orders:\", df_orders.count())\n",
+							"print(\"order_id distincts dans orders:\", df_orders.select(\"order_id\").distinct().count())\n",
+							"\n",
+							"# order_id qui n'existent pas dans orders \n",
+							"orphan_orders = df_order_items.select(\"order_id\").distinct() \\\n",
+							"    .join(df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\")\n",
+							"print(\"order_id orphelins dans order_items:\", orphan_orders.count())\n",
+							"orphan_orders = df_orders.select()"
+						],
+						"outputs": [],
+						"execution_count": 26
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"orphan_products_sales = df_order_items.select(\"product_id\").distinct() \\\n",
+							"    .join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+							"\n",
+							"print(\"product_id orphelins dans order_items:\", orphan_products_sales.count())\n",
+							"\n",
+							"lignes_orphelines_sales = df_order_items.join(\n",
+							"    df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\"\n",
+							")\n",
+							"print(\"Lignes concernées:\", lignes_orphelines_sales.count())\n",
+							"print(\"Total lignes order_items:\", df_order_items.count())"
+						],
+						"outputs": [],
+						"execution_count": 27
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import round as spark_round\n",
+							"fact_sales = df_order_items.join(\n",
+							"    df_orders.select(\n",
+							"        \"order_id\",\n",
+							"        \"customer_id\",\n",
+							"        \"order_date\",\n",
+							"        \"status\",\n",
+							"        \"promotion_id\",\n",
+							"        \"shipping_address_id\"\n",
+							"    ),\n",
+							"    on=\"order_id\",\n",
+							"    how=\"inner\"\n",
+							").join(\n",
+							"    df_products.select(\"product_id\"),\n",
+							"    on=\"product_id\",\n",
+							"    how=\"inner\"\n",
+							").withColumn(\n",
+							"    \"line_total\",\n",
+							"    spark_round(col(\"quantity\") * col(\"unit_price\") * (1 - col(\"discount_applied\")), 2)\n",
+							").withColumn(\n",
+							"    \"date_id\",\n",
+							"    date_format(col(\"order_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							")\n",
+							"\n",
+							"print(f\"Nombre de lignes : {fact_sales.count()}\")\n",
+							""
+						],
+						"outputs": [],
+						"execution_count": 28
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import date_format\n",
+							"#Créer date_id pour la jointure\n",
+							"fact_sales = fact_sales.withColumn(\n",
+							"    \"date_id\",\n",
+							"    date_format(col(\"order_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							")\n",
+							"\n",
+							"fact_sales.select(\"order_date\", \"date_id\").show(5)"
+						],
+						"outputs": [],
+						"execution_count": 29
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_sales.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_sales/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 30
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de la table de fait - fact_payments**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"orphan_payments = df_payments.select(\"order_id\").distinct() \\\n",
+							"    .join(df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\")\n",
+							"\n",
+							"print(\"order_id orphelins dans payments:\", orphan_payments.count())\n",
+							"\n",
+							"lignes_orphelines_payments = df_payments.join(\n",
+							"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\"\n",
+							")\n",
+							"print(\"Lignes de payments concernées:\", lignes_orphelines_payments.count())\n",
+							"print(\"Total lignes payments:\", df_payments.count())\n",
+							"print(\"Pourcentage:\", round(lignes_orphelines_payments.count() / df_payments.count() * 100, 2), \"%\")"
+						],
+						"outputs": [],
+						"execution_count": 31
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_payments = df_payments.join(\n",
+							"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"inner\"\n",
+							").withColumn(\n",
+							"    \"date_id\",\n",
+							"    date_format(col(\"payment_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							")\n",
+							"\n",
+							"print(f\"Nombre de lignes : {fact_payments.count()}\")  \n",
+							"fact_payments.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 32
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_payments.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_payments/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 33
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Création dea la table de fait - fact_shipments</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"lignes_orphelines_shipments = df_shipments.join(\n",
+							"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\"\n",
+							")\n",
+							"print(\"Lignes de shipments concernées:\", lignes_orphelines_shipments.count())\n",
+							"print(\"Total lignes shipments:\", df_shipments.count())\n",
+							"print(\"Pourcentage:\", round(lignes_orphelines_shipments.count() / df_shipments.count() * 100, 2), \"%\")"
+						],
+						"outputs": [],
+						"execution_count": 34
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_shipments = df_shipments.join(\n",
+							"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"inner\"\n",
+							").withColumn(\n",
+							"    \"ship_date_id\",\n",
+							"    date_format(col(\"ship_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							").withColumn(\n",
+							"    \"delivery_date_id\",\n",
+							"    date_format(col(\"delivery_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							").drop(\"tracking_number\")\n",
+							"\n",
+							"print(f\"Nombre de lignes : {fact_shipments.count()}\")  \n",
+							"fact_shipments.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 35
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_shipments.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_shipments/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 36
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de table de fait - fact_returns**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"lignes_orphelines_returns = df_returns.join(\n",
+							"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\"\n",
+							")\n",
+							"print(\"Lignes de returns concernées:\", lignes_orphelines_returns.count())\n",
+							"print(\"Total lignes returns:\", df_returns.count())\n",
+							"print(\"Pourcentage:\", round(lignes_orphelines_returns.count() / df_returns.count() * 100, 2), \"%\")"
+						],
+						"outputs": [],
+						"execution_count": 37
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_returns = df_returns.join(\n",
+							"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"inner\"\n",
+							").withColumn(\n",
+							"    \"date_id\",\n",
+							"    date_format(col(\"return_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							")\n",
+							"\n",
+							"print(f\"Nombre de lignes : {fact_returns.count()}\")\n",
+							"fact_returns.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 38
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_returns.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_returns/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 39
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### <mark>**Création de la table de fait - fact_reviews**</mark>"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Orphelins côté customer_id\n",
+							"orphan_customers_reviews = df_reviews.select(\"customer_id\").distinct() \\\n",
+							"    .join(df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"left_anti\")\n",
+							"print(\"customer_id orphelins dans reviews:\", orphan_customers_reviews.count())\n",
+							"\n",
+							"# Orphelins côté product_id\n",
+							"orphan_products_reviews = df_reviews.select(\"product_id\").distinct() \\\n",
+							"    .join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+							"print(\"product_id orphelins dans reviews:\", orphan_products_reviews.count())\n",
+							"\n",
+							"# Lignes concernées au total\n",
+							"lignes_orphelines_reviews = df_reviews.join(\n",
+							"    df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"left_anti\"\n",
+							").union(\n",
+							"    df_reviews.join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+							").distinct()\n",
+							"print(\"Lignes reviews concernées (au moins un id orphelin):\", lignes_orphelines_reviews.count())\n",
+							"print(\"Total lignes reviews:\", df_reviews.count())"
+						],
+						"outputs": [],
+						"execution_count": 40
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_reviews = df_reviews.join(\n",
+							"    df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"inner\"\n",
+							").join(\n",
+							"    df_products.select(\"product_id\"), on=\"product_id\", how=\"inner\"\n",
+							").withColumn(\n",
+							"    \"date_id\",\n",
+							"    date_format(col(\"review_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							")\n",
+							"\n",
+							"print(f\"Nombre de lignes : {fact_reviews.count()}\")  \n",
+							"fact_reviews.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 41
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_reviews.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_reviews/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 42
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"### **<mark>Création de a table de fait - fact_inventory</mark>**"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Orphelins côté product_id\n",
+							"orphan_products_inv = df_inventory.select(\"product_id\").distinct() \\\n",
+							"    .join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+							"print(\"product_id orphelins dans inventory:\", orphan_products_inv.count())\n",
+							"\n",
+							"# Orphelins côté warehouse_id\n",
+							"orphan_warehouses_inv = df_inventory.select(\"warehouse_id\").distinct() \\\n",
+							"    .join(df_warehouses.select(\"warehouse_id\"), on=\"warehouse_id\", how=\"left_anti\")\n",
+							"print(\"warehouse_id orphelins dans inventory:\", orphan_warehouses_inv.count())\n",
+							"\n",
+							"# Lignes concernées au total\n",
+							"lignes_orphelines_inv = df_inventory.join(\n",
+							"    df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\"\n",
+							").union(\n",
+							"    df_inventory.join(df_warehouses.select(\"warehouse_id\"), on=\"warehouse_id\", how=\"left_anti\")\n",
+							").distinct()\n",
+							"print(\"Lignes inventory concernées:\", lignes_orphelines_inv.count())\n",
+							"print(\"Total lignes inventory:\", df_inventory.count())"
+						],
+						"outputs": [],
+						"execution_count": 43
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_inventory = df_inventory.join(\n",
+							"    df_products.select(\"product_id\"), on=\"product_id\", how=\"inner\"\n",
+							").join(\n",
+							"    df_warehouses.select(\"warehouse_id\"), on=\"warehouse_id\", how=\"inner\"\n",
+							").withColumn(\n",
+							"    \"date_id\",\n",
+							"    date_format(col(\"last_restock_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+							")\n",
+							"\n",
+							"print(f\"Nombre de lignes : {fact_inventory.count()}\")  \n",
+							"fact_inventory.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 44
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"fact_inventory.write.mode(\"overwrite\").parquet(\n",
+							"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_inventory/\"\n",
+							")"
+						],
+						"outputs": [],
+						"execution_count": 45
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							""
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SPDLake')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 15
+				},
+				"autoScale": {
+					"enabled": false,
+					"maxNodeCount": 10,
+					"minNodeCount": 3
+				},
+				"nodeCount": 3,
+				"nodeSize": "Small",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "3.5",
+				"isComputeIsolationEnabled": false,
+				"sessionLevelPackagesEnabled": false,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "francecentral"
+		}
+	]
+}
