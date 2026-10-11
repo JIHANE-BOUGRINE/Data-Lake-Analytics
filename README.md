@@ -32,18 +32,6 @@ Ce projet met en place une plateforme d'analyse de données e-commerce de bout e
 
 ![Architecture](docs/architecture.svg)
 
-## Technologies
-
-| Service | Ressource | Rôle |
-|---|---|---|
-| Data Lake Storage Gen2 | `adlsbougrine` | Stockage des couches |
-| Data Factory | `adfbougrine` | Ingestion et orchestration |
-| Synapse Analytics | `synapsebougrine` | Pool Spark `SPDLake`, SQL serverless (`gold_db`) |
-| Azure Monitor | `alert_adf_pipeline_failed` | Alerte e-mail en cas d'échec |
-| Terraform | `infra/` | Déploiement de l'infrastructure |
-| Power BI | n/a | Visualisation |
-| GitHub | n/a | Versionnement du code |
-
 
 ## Auteur
 
