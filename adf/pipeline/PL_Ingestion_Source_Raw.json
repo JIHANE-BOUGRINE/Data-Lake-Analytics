@@ -14,7 +14,7 @@
 					},
 					"activities": [
 						{
-							"name": "Copy data1",
+							"name": "Copy data",
 							"type": "Copy",
 							"dependsOn": [],
 							"policy": {
@@ -113,6 +113,8 @@
 				]
 			}
 		},
-		"annotations": []
-	}
+		"annotations": [],
+		"lastPublishTime": "2026-10-11T06:32:54Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
 }
