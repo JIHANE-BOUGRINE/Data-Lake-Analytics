@@ -7,6 +7,10 @@
 			"metadata": "Nom de fabrique de données",
 			"defaultValue": "adfbougrine"
 		},
+		"AzureSynapseArtifacts_properties_typeProperties_endpoint": {
+			"type": "string",
+			"defaultValue": "https://synapsebougrine.dev.azuresynapse.net"
+		},
 		"LS_ADLS_Destination_properties_typeProperties_url": {
 			"type": "string",
 			"defaultValue": "https://adlsbougrine.dfs.core.windows.net/"
@@ -41,6 +45,9 @@
 				"parameters": {
 					"factoryName": {
 						"value": "[parameters('factoryName')]"
+					},
+					"AzureSynapseArtifacts_properties_typeProperties_endpoint": {
+						"value": "[parameters('AzureSynapseArtifacts_properties_typeProperties_endpoint')]"
 					},
 					"LS_ADLS_Destination_properties_typeProperties_url": {
 						"value": "[parameters('LS_ADLS_Destination_properties_typeProperties_url')]"

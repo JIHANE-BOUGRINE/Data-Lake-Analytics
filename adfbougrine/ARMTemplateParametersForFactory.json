@@ -5,6 +5,9 @@
 		"factoryName": {
 			"value": "adfbougrine"
 		},
+		"AzureSynapseArtifacts_properties_typeProperties_endpoint": {
+			"value": "https://synapsebougrine.dev.azuresynapse.net"
+		},
 		"LS_ADLS_Destination_properties_typeProperties_url": {
 			"value": "https://adlsbougrine.dfs.core.windows.net/"
 		},
