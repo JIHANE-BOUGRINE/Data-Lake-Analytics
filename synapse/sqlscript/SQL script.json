@@ -1,0 +1,17 @@
+{
+	"name": "SQL script",
+	"properties": {
+		"content": {
+			"query": "CREATE DATABASE ecommerce_gold;\nGO\n\nUSE ecommerce_gold;\nGO\n-- Vue dim_date\nCREATE OR ALTER VIEW dim_date AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_date/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_customers\nCREATE OR ALTER VIEW dim_customers AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_customers/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_products\nCREATE OR ALTER VIEW dim_products AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_products/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_promotions\nCREATE OR ALTER VIEW dim_promotions AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_promotions/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue dim_warehouses\nCREATE OR ALTER VIEW dim_warehouses AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/dim_warehouses/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_sales\nCREATE OR ALTER VIEW fact_sales AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_sales/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_payments\nCREATE OR ALTER VIEW fact_payments AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_payments/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_shipments\nCREATE OR ALTER VIEW fact_shipments AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_shipments/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_returns\nCREATE OR ALTER VIEW fact_returns AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_returns/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_reviews\nCREATE OR ALTER VIEW fact_reviews AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_reviews/**',\n    FORMAT = 'PARQUET'\n) AS r;\nGO\n\n-- Vue fact_inventory\n\nCREATE OR ALTER VIEW fact_inventory AS\nSELECT *\nFROM OPENROWSET(\n    BULK 'https://adlsbougrine.dfs.core.windows.net/enriched/fact_inventory/**',\n    FORMAT = 'PARQUET'\n) AS r;\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "ecommerce_gold",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}

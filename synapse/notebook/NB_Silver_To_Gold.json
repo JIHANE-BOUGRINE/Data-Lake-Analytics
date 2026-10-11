@@ -1,0 +1,800 @@
+{
+	"name": "NB_Silver_To_Gold",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "SPDLake",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"runAsWorkspaceSystemIdentity": false,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "d8186cc5-e747-4ac2-8a6d-c88509544a95"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"synapse_widget": {
+				"version": "0.1"
+			},
+			"enableDebugMode": false,
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/bdfa1129-0773-4909-948b-f81c94886e31/resourceGroups/rgJihaneBougrine/providers/Microsoft.Synapse/workspaces/synapsebougrine/bigDataPools/SPDLake",
+				"name": "SPDLake",
+				"type": "Spark",
+				"endpoint": "https://synapsebougrine.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/SPDLake",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net",
+					"authHeader": null
+				},
+				"sparkVersion": "3.5",
+				"nodeCount": 3,
+				"cores": 4,
+				"memory": 28,
+				"extraHeader": null
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"source": [
+					"#Lecture des données \"curated\"\n",
+					"def read_curated(table_name):\n",
+					"    base_path = \"abfss://curated@adlsbougrine.dfs.core.windows.net/\"\n",
+					"    return spark.read.parquet(f\"{base_path}{table_name}/\")\n",
+					"\n",
+					"# Lecture\n",
+					"df_orders = read_curated(\"orders\")\n",
+					"df_customers = read_curated(\"customers\")\n",
+					"df_products = read_curated(\"products\")\n",
+					"df_inventory = read_curated(\"inventory\")\n",
+					"df_categories = read_curated(\"categories\")\n",
+					"df_shipments = read_curated(\"shipments\")\n",
+					"df_loyalty_points = read_curated(\"loyalty_points\")\n",
+					"df_promotions = read_curated(\"promotions\")\n",
+					"df_suppliers = read_curated(\"suppliers\")\n",
+					"df_returns = read_curated(\"returns\")\n",
+					"df_reviews= read_curated(\"reviews\")\n",
+					"df_payments = read_curated(\"payments\")\n",
+					"df_warehouses = read_curated(\"warehouses\")\n",
+					"df_customer_addresses = read_curated(\"customer_addresses\")\n",
+					"df_order_items = read_curated(\"order_items\")"
+				],
+				"execution_count": 4
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import min as spark_min, max as spark_max\n",
+					"\n",
+					"#Analyse des plages de dates des tables\n",
+					"\n",
+					"print(\"Orders\")\n",
+					"df_orders.select(spark_min(\"order_date\"), spark_max(\"order_date\")).show()\n",
+					"\n",
+					"print(\"Payments\")\n",
+					"df_payments.select(spark_min(\"payment_date\"), spark_max(\"payment_date\")).show()\n",
+					"\n",
+					"print(\"Shipments\")\n",
+					"df_shipments.select(spark_min(\"ship_date\"), spark_max(\"delivery_date\")).show()\n",
+					"\n",
+					"print(\"Returns\")\n",
+					"df_returns.select(spark_min(\"return_date\"), spark_max(\"return_date\")).show()\n",
+					"\n",
+					"print(\"Reviews\")\n",
+					"df_reviews.select(spark_min(\"review_date\"), spark_max(\"review_date\")).show()\n",
+					"\n",
+					"print(\"Inventory\")\n",
+					"df_inventory.select(spark_min(\"last_restock_date\"), spark_max(\"last_restock_date\")).show()\n",
+					""
+				],
+				"execution_count": 5
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### **<mark>Création de la dimensions dim_date</mark>**"
+				]
+			},
+			{
+				"cell_type": "code",
+				"metadata": {
+					"collapsed": false
+				},
+				"source": [
+					"#Générer toutes les dates entre 2020 et 2025\n",
+					"from pyspark.sql.functions import date_format,col,when,year,quarter,month,weekofyear,dayofmonth,dayofweek\n",
+					"df_date_range = spark.sql(\"\"\"\n",
+					"    SELECT explode(sequence (to_date('2020-01-01'),to_date('2024-12-31'),interval 1 day)) as date\n",
+					"\"\"\")\n",
+					"#création de la dimension dim_date\n",
+					"dim_date = df_date_range\\\n",
+					"    .withColumn(\"date_id\", date_format(col(\"date\"), \"yyyyMMdd\").cast(\"integer\"))\\\n",
+					"    .withColumn(\"year\", year(col(\"date\")))\\\n",
+					"    .withColumn(\"quarter\", quarter(col(\"date\")))\\\n",
+					"    .withColumn(\"month\", month(col(\"date\")))\\\n",
+					"    .withColumn(\"month_name\", date_format(col(\"date\"), \"MMMM\"))\\\n",
+					"    .withColumn(\"week\", weekofyear(col(\"date\")))\\\n",
+					"    .withColumn(\"day\", dayofmonth(col(\"date\")))\\\n",
+					"    .withColumn(\"day_name\", date_format(col(\"date\"), \"EEEE\"))\\\n",
+					"    .withColumn(\"day_of_week\", dayofweek(col(\"date\")))\\\n",
+					"    .withColumn(\"semester\", when(col(\"month\") <= 6, 1).otherwise(2))\\\n",
+					"    .withColumn(\"is_weekend\", when(col(\"day_of_week\").isin(1, 7), True).otherwise(False))\n",
+					"\n",
+					"print(f\"Lignes générées : {dim_date.count()}\")\n",
+					"dim_date.show(5)"
+				],
+				"execution_count": 6
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_date.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_date/\"\n",
+					")"
+				],
+				"execution_count": 7
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de la dimensions - dim_warehouses**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"df_warehouses.printSchema()\n",
+					"df_warehouses.show(5)\n",
+					"print(f\"Nombre de lignes : {df_warehouses.count()}\")"
+				],
+				"execution_count": 8
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_warehouses = df_warehouses\n",
+					"\n",
+					"dim_warehouses.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_warehouses/\"\n",
+					")"
+				],
+				"execution_count": 9
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de la dimesion - dim_promotions**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"df_promotions.printSchema()\n",
+					"df_promotions.show(5)\n",
+					"print(f\"Nombre de lignes : {df_promotions.count()}\")"
+				],
+				"execution_count": 10
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_promotions = df_promotions.drop(\"diff_days\")\n",
+					"\n",
+					"dim_promotions.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_promotions/\"\n",
+					")"
+				],
+				"execution_count": 11
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de la dimension - dim_products**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"print(\"Nombre de products:\", df_products.count())\n",
+					"print(\"Nombre de categories:\", df_categories.count())\n",
+					"print(\"Nombre de suppliers:\", df_suppliers.count())\n",
+					"\n",
+					"print(\"Nombre de category_id distincts dans categories:\", df_categories.select(\"category_id\").distinct().count())\n",
+					"print(\"Nombre de supplier_id distincts dans suppliers:\", df_suppliers.select(\"supplier_id\").distinct().count())"
+				],
+				"execution_count": 12
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"df_suppliers.show(2)"
+				],
+				"execution_count": 13
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_products = df_products\\\n",
+					"    .join(df_categories.select(\"category_id\",\"category_name\",\"parent_category\"), on = \"category_id\", how = \"left\")\\\n",
+					"    .join(df_suppliers.select(\"supplier_id\",\"supplier_name\",col(\"country\").alias(\"supplier_country\"),\n",
+					"        col(\"rating\").alias(\"supplier_rating\")),on=\"supplier_id\",how=\"left\")\n",
+					"print(f\"nombre de lignes : {dim_products.count()}\")\n",
+					"dim_products.show(5)"
+				],
+				"execution_count": 14
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_products.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_products/\"\n",
+					")"
+				],
+				"execution_count": 15
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**création de la dimension - dim_customers**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import count as spark_count\n",
+					"\n",
+					"df_customer_addresses.filter(col(\"is_default\") == True) \\\n",
+					"    .groupBy(\"customer_id\") \\\n",
+					"    .agg(spark_count(\"*\").alias(\"nb_default\")) \\\n",
+					"    .groupBy(\"nb_default\").count().show()"
+				],
+				"execution_count": 16
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"df_customer_addresses.show(4)"
+				],
+				"execution_count": 17
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"df_customer_addresses.select(\"customer_id\").distinct().count()"
+				],
+				"execution_count": 18
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"df_customers.show(4)"
+				],
+				"execution_count": 19
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Nombre total de clients\n",
+					"print(\"Total clients:\", df_customers.count())\n",
+					"print(\"Total clients:\", df_customer_addresses.count())\n",
+					"\n",
+					"# Nombre de clients ayant au moins 1 adresse par défaut\n",
+					"print(\"Clients avec adresse par défaut:\", \n",
+					"      df_customer_addresses.filter(col(\"is_default\") == True).select(\"customer_id\").distinct().count())\n",
+					"\n",
+					"# Nombre de clients SANS adresse par défaut du tout\n",
+					"clients_sans_defaut = df_customers.select(\"customer_id\") \\\n",
+					"    .join(\n",
+					"        df_customer_addresses.filter(col(\"is_default\") == True).select(\"customer_id\"),\n",
+					"        on=\"customer_id\", how=\"left_anti\"\n",
+					"    )\n",
+					"print(\"Clients SANS adresse par défaut:\", clients_sans_defaut.count())"
+				],
+				"execution_count": 20
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"orphan_addresses = df_customer_addresses.select(\"customer_id\").distinct() \\\n",
+					"    .join(df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"left_anti\")\n",
+					"\n",
+					"print(\"customer_id dans customer_addresses mais absents de customers:\", orphan_addresses.count())"
+				],
+				"execution_count": 21
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"#extrait de l'adresse principale de chaque client\n",
+					"df_default_address = df_customer_addresses.filter(col(\"is_default\") == True)"
+				],
+				"execution_count": 22
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import sum as spark_sum\n",
+					"#agrège les points de fidélité par client \n",
+					"df_loyalty_agg = df_loyalty_points.groupBy(\"customer_id\").agg(\n",
+					"    spark_sum(\"points_earned\").alias(\"total_points_earned\"),\n",
+					"    spark_sum(\"points_redeemed\").alias(\"total_points_redeemed\")\n",
+					")\n",
+					"\n",
+					"print(\"Nombre de clients avec historique loyalty:\", df_loyalty_agg.count())\n",
+					"df_loyalty_agg.show(5)"
+				],
+				"execution_count": 23
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_customers = df_customers \\\n",
+					"    .join(\n",
+					"        df_default_address.select(\n",
+					"            \"customer_id\",\n",
+					"            col(\"street\"),\n",
+					"            col(\"city\"),\n",
+					"            col(\"postal_code\"),\n",
+					"            col(\"country\")\n",
+					"        ),\n",
+					"        on=\"customer_id\", how=\"left\"\n",
+					"    ) \\\n",
+					"    .join(\n",
+					"        df_loyalty_agg,\n",
+					"        on=\"customer_id\", how=\"left\"\n",
+					"    ) \\\n",
+					"    .fillna({\"total_points_earned\": 0, \"total_points_redeemed\": 0})\n",
+					"\n",
+					"print(f\"Nombre de lignes : {dim_customers.count()}\")  \n",
+					"dim_customers.show(5)"
+				],
+				"execution_count": 24
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"dim_customers.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/dim_customers/\"\n",
+					")"
+				],
+				"execution_count": 25
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de la table de fait - fact_sales**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# order_id unique dans orders \n",
+					"print(\"Total orders:\", df_orders.count())\n",
+					"print(\"order_id distincts dans orders:\", df_orders.select(\"order_id\").distinct().count())\n",
+					"\n",
+					"# order_id qui n'existent pas dans orders \n",
+					"orphan_orders = df_order_items.select(\"order_id\").distinct() \\\n",
+					"    .join(df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\")\n",
+					"print(\"order_id orphelins dans order_items:\", orphan_orders.count())\n",
+					"orphan_orders = df_orders.select()"
+				],
+				"execution_count": 26
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"orphan_products_sales = df_order_items.select(\"product_id\").distinct() \\\n",
+					"    .join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+					"\n",
+					"print(\"product_id orphelins dans order_items:\", orphan_products_sales.count())\n",
+					"\n",
+					"lignes_orphelines_sales = df_order_items.join(\n",
+					"    df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\"\n",
+					")\n",
+					"print(\"Lignes concernées:\", lignes_orphelines_sales.count())\n",
+					"print(\"Total lignes order_items:\", df_order_items.count())"
+				],
+				"execution_count": 27
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import round as spark_round\n",
+					"fact_sales = df_order_items.join(\n",
+					"    df_orders.select(\n",
+					"        \"order_id\",\n",
+					"        \"customer_id\",\n",
+					"        \"order_date\",\n",
+					"        \"status\",\n",
+					"        \"promotion_id\",\n",
+					"        \"shipping_address_id\"\n",
+					"    ),\n",
+					"    on=\"order_id\",\n",
+					"    how=\"inner\"\n",
+					").join(\n",
+					"    df_products.select(\"product_id\"),\n",
+					"    on=\"product_id\",\n",
+					"    how=\"inner\"\n",
+					").withColumn(\n",
+					"    \"line_total\",\n",
+					"    spark_round(col(\"quantity\") * col(\"unit_price\") * (1 - col(\"discount_applied\")), 2)\n",
+					").withColumn(\n",
+					"    \"date_id\",\n",
+					"    date_format(col(\"order_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					")\n",
+					"\n",
+					"print(f\"Nombre de lignes : {fact_sales.count()}\")\n",
+					""
+				],
+				"execution_count": 28
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import date_format\n",
+					"#Créer date_id pour la jointure\n",
+					"fact_sales = fact_sales.withColumn(\n",
+					"    \"date_id\",\n",
+					"    date_format(col(\"order_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					")\n",
+					"\n",
+					"fact_sales.select(\"order_date\", \"date_id\").show(5)"
+				],
+				"execution_count": 29
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_sales.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_sales/\"\n",
+					")"
+				],
+				"execution_count": 30
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de la table de fait - fact_payments**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"orphan_payments = df_payments.select(\"order_id\").distinct() \\\n",
+					"    .join(df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\")\n",
+					"\n",
+					"print(\"order_id orphelins dans payments:\", orphan_payments.count())\n",
+					"\n",
+					"lignes_orphelines_payments = df_payments.join(\n",
+					"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\"\n",
+					")\n",
+					"print(\"Lignes de payments concernées:\", lignes_orphelines_payments.count())\n",
+					"print(\"Total lignes payments:\", df_payments.count())\n",
+					"print(\"Pourcentage:\", round(lignes_orphelines_payments.count() / df_payments.count() * 100, 2), \"%\")"
+				],
+				"execution_count": 31
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_payments = df_payments.join(\n",
+					"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"inner\"\n",
+					").withColumn(\n",
+					"    \"date_id\",\n",
+					"    date_format(col(\"payment_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					")\n",
+					"\n",
+					"print(f\"Nombre de lignes : {fact_payments.count()}\")  \n",
+					"fact_payments.show(5)"
+				],
+				"execution_count": 32
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_payments.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_payments/\"\n",
+					")"
+				],
+				"execution_count": 33
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### **<mark>Création dea la table de fait - fact_shipments</mark>**"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"lignes_orphelines_shipments = df_shipments.join(\n",
+					"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\"\n",
+					")\n",
+					"print(\"Lignes de shipments concernées:\", lignes_orphelines_shipments.count())\n",
+					"print(\"Total lignes shipments:\", df_shipments.count())\n",
+					"print(\"Pourcentage:\", round(lignes_orphelines_shipments.count() / df_shipments.count() * 100, 2), \"%\")"
+				],
+				"execution_count": 34
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_shipments = df_shipments.join(\n",
+					"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"inner\"\n",
+					").withColumn(\n",
+					"    \"ship_date_id\",\n",
+					"    date_format(col(\"ship_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					").withColumn(\n",
+					"    \"delivery_date_id\",\n",
+					"    date_format(col(\"delivery_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					").drop(\"tracking_number\")\n",
+					"\n",
+					"print(f\"Nombre de lignes : {fact_shipments.count()}\")  \n",
+					"fact_shipments.show(5)"
+				],
+				"execution_count": 35
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_shipments.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_shipments/\"\n",
+					")"
+				],
+				"execution_count": 36
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de table de fait - fact_returns**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"lignes_orphelines_returns = df_returns.join(\n",
+					"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"left_anti\"\n",
+					")\n",
+					"print(\"Lignes de returns concernées:\", lignes_orphelines_returns.count())\n",
+					"print(\"Total lignes returns:\", df_returns.count())\n",
+					"print(\"Pourcentage:\", round(lignes_orphelines_returns.count() / df_returns.count() * 100, 2), \"%\")"
+				],
+				"execution_count": 37
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_returns = df_returns.join(\n",
+					"    df_orders.select(\"order_id\"), on=\"order_id\", how=\"inner\"\n",
+					").withColumn(\n",
+					"    \"date_id\",\n",
+					"    date_format(col(\"return_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					")\n",
+					"\n",
+					"print(f\"Nombre de lignes : {fact_returns.count()}\")\n",
+					"fact_returns.show(5)"
+				],
+				"execution_count": 38
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_returns.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_returns/\"\n",
+					")"
+				],
+				"execution_count": 39
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### <mark>**Création de la table de fait - fact_reviews**</mark>"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Orphelins côté customer_id\n",
+					"orphan_customers_reviews = df_reviews.select(\"customer_id\").distinct() \\\n",
+					"    .join(df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"left_anti\")\n",
+					"print(\"customer_id orphelins dans reviews:\", orphan_customers_reviews.count())\n",
+					"\n",
+					"# Orphelins côté product_id\n",
+					"orphan_products_reviews = df_reviews.select(\"product_id\").distinct() \\\n",
+					"    .join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+					"print(\"product_id orphelins dans reviews:\", orphan_products_reviews.count())\n",
+					"\n",
+					"# Lignes concernées au total\n",
+					"lignes_orphelines_reviews = df_reviews.join(\n",
+					"    df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"left_anti\"\n",
+					").union(\n",
+					"    df_reviews.join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+					").distinct()\n",
+					"print(\"Lignes reviews concernées (au moins un id orphelin):\", lignes_orphelines_reviews.count())\n",
+					"print(\"Total lignes reviews:\", df_reviews.count())"
+				],
+				"execution_count": 40
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_reviews = df_reviews.join(\n",
+					"    df_customers.select(\"customer_id\"), on=\"customer_id\", how=\"inner\"\n",
+					").join(\n",
+					"    df_products.select(\"product_id\"), on=\"product_id\", how=\"inner\"\n",
+					").withColumn(\n",
+					"    \"date_id\",\n",
+					"    date_format(col(\"review_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					")\n",
+					"\n",
+					"print(f\"Nombre de lignes : {fact_reviews.count()}\")  \n",
+					"fact_reviews.show(5)"
+				],
+				"execution_count": 41
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_reviews.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_reviews/\"\n",
+					")"
+				],
+				"execution_count": 42
+			},
+			{
+				"cell_type": "markdown",
+				"metadata": {
+					"nteract": {
+						"transient": {
+							"deleting": false
+						}
+					}
+				},
+				"source": [
+					"### **<mark>Création de a table de fait - fact_inventory</mark>**"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Orphelins côté product_id\n",
+					"orphan_products_inv = df_inventory.select(\"product_id\").distinct() \\\n",
+					"    .join(df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\")\n",
+					"print(\"product_id orphelins dans inventory:\", orphan_products_inv.count())\n",
+					"\n",
+					"# Orphelins côté warehouse_id\n",
+					"orphan_warehouses_inv = df_inventory.select(\"warehouse_id\").distinct() \\\n",
+					"    .join(df_warehouses.select(\"warehouse_id\"), on=\"warehouse_id\", how=\"left_anti\")\n",
+					"print(\"warehouse_id orphelins dans inventory:\", orphan_warehouses_inv.count())\n",
+					"\n",
+					"# Lignes concernées au total\n",
+					"lignes_orphelines_inv = df_inventory.join(\n",
+					"    df_products.select(\"product_id\"), on=\"product_id\", how=\"left_anti\"\n",
+					").union(\n",
+					"    df_inventory.join(df_warehouses.select(\"warehouse_id\"), on=\"warehouse_id\", how=\"left_anti\")\n",
+					").distinct()\n",
+					"print(\"Lignes inventory concernées:\", lignes_orphelines_inv.count())\n",
+					"print(\"Total lignes inventory:\", df_inventory.count())"
+				],
+				"execution_count": 43
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_inventory = df_inventory.join(\n",
+					"    df_products.select(\"product_id\"), on=\"product_id\", how=\"inner\"\n",
+					").join(\n",
+					"    df_warehouses.select(\"warehouse_id\"), on=\"warehouse_id\", how=\"inner\"\n",
+					").withColumn(\n",
+					"    \"date_id\",\n",
+					"    date_format(col(\"last_restock_date\"), \"yyyyMMdd\").cast(\"integer\")\n",
+					")\n",
+					"\n",
+					"print(f\"Nombre de lignes : {fact_inventory.count()}\")  \n",
+					"fact_inventory.show(5)"
+				],
+				"execution_count": 44
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"fact_inventory.write.mode(\"overwrite\").parquet(\n",
+					"    \"abfss://enriched@adlsbougrine.dfs.core.windows.net/fact_inventory/\"\n",
+					")"
+				],
+				"execution_count": 45
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					""
+				]
+			}
+		]
+	}
+}
